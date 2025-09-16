@@ -5,18 +5,97 @@ const Match = require("../models/Match");
 const Like = require("../models/Like");
 const { requireAuth, authorize } = require("../middlewares/auth");
 
-// helper: يحاول يقرأ userId لو فيه توكن (لأجل likedByUser)، وإلا يرجع null
+// 🆕 استدعاء API المدفوع
+const {
+  getTodayMatches,
+  getMatchByIdAPI,
+  getTeamLastMatches,
+  getStandings,
+  getLeagues,
+  getTeamInfo,
+  getTeamPlayers
+} = require("../services/footballAPI");
+
+// helper: يحاول يقرأ userId لو فيه توكن
 function tryGetUserId(req) {
-  // لو عندك middleware بيحط req.user لما يكون فيه توكن صالح
-  // هتلاقيه موجود في المسارات المحمية. في العامة غالبًا مش موجود.
   return req.user?.id || null;
 }
 
 /* =========================
-      PUBLIC READ ENDPOINTS
+   PUBLIC: API FOOTBALL ENDPOINTS
    ========================= */
 
-// GET /matches — عامة
+// 🆕 مباريات اليوم (من API خارجي)
+router.get("/today/api", async (req, res) => {
+  try {
+    const { league } = req.query;
+    const matches = await getTodayMatches(league);
+    res.json({ source: "API-Football", count: matches.length, matches });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching API matches", error: err.message });
+  }
+});
+
+// 🆕 مباراة من API بالـ ID
+router.get("/api/:id", async (req, res) => {
+  try {
+    const match = await getMatchByIdAPI(req.params.id);
+    if (!match) return res.status(404).json({ message: "Match not found in API" });
+    res.json(match);
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching API match", error: err.message });
+  }
+});
+
+// 🆕 جدول الترتيب
+router.get("/standings/:leagueId", async (req, res) => {
+  try {
+    const season = req.query.season || new Date().getFullYear();
+    const standings = await getStandings(req.params.leagueId, season);
+    res.json({ league: req.params.leagueId, season, standings });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching standings", error: err.message });
+  }
+});
+
+// 🆕 آخر مباريات فريق
+router.get("/team/:teamId/last", async (req, res) => {
+  try {
+    const count = req.query.count || 5;
+    const matches = await getTeamLastMatches(req.params.teamId, count);
+    res.json({ teamId: req.params.teamId, matches });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching team matches", error: err.message });
+  }
+});
+
+// 🆕 لاعبي الفريق
+router.get("/team/:teamId/players", async (req, res) => {
+  try {
+    const season = req.query.season || new Date().getFullYear();
+    const players = await getTeamPlayers(req.params.teamId, season);
+    res.json({ teamId: req.params.teamId, season, players });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching players", error: err.message });
+  }
+});
+
+// 🆕 الدوريات
+router.get("/leagues", async (req, res) => {
+  try {
+    const { country, season } = req.query;
+    const leagues = await getLeagues(country, season);
+    res.json({ count: leagues.length, leagues });
+  } catch (err) {
+    res.status(500).json({ message: "Error fetching leagues", error: err.message });
+  }
+});
+
+/* =========================
+   PUBLIC: DATABASE ENDPOINTS
+   ========================= */
+
+// GET /matches (كل المباريات من الداتابيز)
 router.get("/", async (req, res) => {
   try {
     const matches = await Match.find()
@@ -29,25 +108,12 @@ router.get("/", async (req, res) => {
 
     const matchesWithLikes = await Promise.all(
       matches.map(async (match) => {
-        const likesCount = await Like.countDocuments({
-          targetType: "Match",
-          targetId: match._id,
-        });
-
+        const likesCount = await Like.countDocuments({ targetType: "Match", targetId: match._id });
         let userLiked = false;
         if (userId) {
-          userLiked = !!(await Like.exists({
-            user: userId,
-            targetType: "Match",
-            targetId: match._id,
-          }));
+          userLiked = !!(await Like.exists({ user: userId, targetType: "Match", targetId: match._id }));
         }
-
-        return {
-          ...match.toObject(),
-          likes: likesCount,
-          likedByUser: userLiked,
-        };
+        return { ...match.toObject(), likes: likesCount, likedByUser: userLiked };
       })
     );
 
@@ -57,50 +123,22 @@ router.get("/", async (req, res) => {
   }
 });
 
-// GET /matches/live — عامة
+// GET /matches/live (مباريات لايف من الداتابيز)
 router.get("/live", async (req, res) => {
   try {
-    const liveMatches = await Match.find({
-      status: { $in: ["live", "half-time"] },
-    })
+    const liveMatches = await Match.find({ status: { $in: ["live", "half-time"] } })
       .populate("homeTeam", "name country logo")
       .populate("awayTeam", "name country logo")
       .populate("tournament", "name year country")
       .sort({ minute: -1 });
 
-    const userId = tryGetUserId(req);
-
-    const matchesWithLikes = await Promise.all(
-      liveMatches.map(async (match) => {
-        const likesCount = await Like.countDocuments({
-          targetType: "Match",
-          targetId: match._id,
-        });
-
-        let userLiked = false;
-        if (userId) {
-          userLiked = !!(await Like.exists({
-            user: userId,
-            targetType: "Match",
-            targetId: match._id,
-          }));
-        }
-
-        return {
-          ...match.toObject(),
-          likes: likesCount,
-          likedByUser: userLiked,
-        };
-      })
-    );
-
-    res.json(matchesWithLikes);
+    res.json(liveMatches);
   } catch (err) {
     res.status(500).json({ message: "Error fetching live matches", error: err.message });
   }
 });
 
-// GET /matches/:id — عامة
+// GET /matches/:id (مباراة من الداتابيز)
 router.get("/:id", async (req, res) => {
   try {
     const match = await Match.findById(req.params.id)
@@ -110,214 +148,58 @@ router.get("/:id", async (req, res) => {
 
     if (!match) return res.status(404).json({ message: "Match not found" });
 
-    const likesCount = await Like.countDocuments({
-      targetType: "Match",
-      targetId: match._id,
-    });
-
-    const userId = tryGetUserId(req);
-
-    let userLiked = false;
-    if (userId) {
-      userLiked = !!(await Like.exists({
-        user: userId,
-        targetType: "Match",
-        targetId: match._id,
-      }));
-    }
-
-    res.json({
-      ...match.toObject(),
-      likes: likesCount,
-      likedByUser: userLiked,
-    });
+    res.json(match);
   } catch (err) {
     res.status(500).json({ message: "Error fetching match", error: err.message });
   }
 });
 
 /* =========================
-     PROTECTED WRITE OPS
+   PROTECTED: ADMIN OPS
    ========================= */
 
-// ➕ إضافة ماتش جديد (admin/editor)
+// ➕ إضافة مباراة
 router.post("/", requireAuth, authorize("match:create"), async (req, res) => {
   try {
-    const { homeTeam, awayTeam, tournament, date, venue, scoreA, scoreB, status } = req.body;
-
-    if (!homeTeam || !awayTeam || !tournament || !venue) {
-      return res
-        .status(400)
-        .json({ message: "homeTeam, awayTeam, tournament, venue are required" });
-    }
-
-    const match = new Match({
-      homeTeam,
-      awayTeam,
-      tournament,
-      date,
-      venue,
-      scoreA: scoreA ?? 0,
-      scoreB: scoreB ?? 0,
-      status: status || "scheduled",
-      events: [],
-      minute: 0,
-    });
+    const match = new Match(req.body);
     await match.save();
-
-    const populated = await Match.findById(match._id)
-      .populate("homeTeam", "name country logo")
-      .populate("awayTeam", "name country logo")
-      .populate("tournament", "name year country");
-
-    res.status(201).json({ message: "Match created successfully", match: populated });
+    res.status(201).json({ message: "Match created", match });
   } catch (err) {
     res.status(400).json({ message: "Error creating match", error: err.message });
   }
 });
 
-// ✏️ تحديث النتيجة المباشرة (admin/editor)
+// ✏️ تحديث النتيجة
 router.put("/:id/score", requireAuth, authorize("match:edit"), async (req, res) => {
   try {
     const { scoreA, scoreB, minute } = req.body;
-    const matchId = req.params.id;
-
-    const updated = await Match.findByIdAndUpdate(
-      matchId,
-      {
-        scoreA: scoreA ?? 0,
-        scoreB: scoreB ?? 0,
-        minute: minute ?? 0,
-        status: "live",
-      },
-      { new: true, runValidators: true }
-    )
-      .populate("homeTeam", "name country logo")
-      .populate("awayTeam", "name country logo")
-      .populate("tournament", "name year country");
-
-    if (!updated) return res.status(404).json({ message: "Match not found" });
+    const match = await Match.findByIdAndUpdate(
+      req.params.id,
+      { scoreA, scoreB, minute, status: "live" },
+      { new: true }
+    );
+    if (!match) return res.status(404).json({ message: "Match not found" });
 
     if (global.sendLiveScoreUpdate) {
-      global.sendLiveScoreUpdate(matchId, {
-        homeScore: updated.scoreA,
-        awayScore: updated.scoreB,
-        minute: updated.minute,
-        homeTeam: updated.homeTeam?.name,
-        awayTeam: updated.awayTeam?.name,
+      global.sendLiveScoreUpdate(match._id, {
+        homeScore: match.scoreA,
+        awayScore: match.scoreB,
+        minute: match.minute,
       });
     }
 
-    res.json({ message: "Score updated", match: updated });
+    res.json({ message: "Score updated", match });
   } catch (err) {
     res.status(500).json({ message: "Error updating score", error: err.message });
   }
 });
 
-// ➕ إضافة حدث (admin/editor)
-router.post("/:id/events", requireAuth, authorize("match:edit"), async (req, res) => {
-  try {
-    const { type, minute, player, team, description } = req.body;
-    const matchId = req.params.id;
-
-    if (!type || minute == null || !player || !team) {
-      return res.status(400).json({ message: "type, minute, player, team are required" });
-    }
-
-    const match = await Match.findById(matchId);
-    if (!match) return res.status(404).json({ message: "Match not found" });
-
-    const newEvent = {
-      type, // goal, card, substitution
-      minute,
-      player,
-      team,
-      description: description || `${type} by ${player}`,
-      timestamp: new Date(),
-    };
-
-    match.events.push(newEvent);
-    match.minute = minute;
-    await match.save();
-
-    const updated = await Match.findById(matchId)
-      .populate("homeTeam", "name country logo")
-      .populate("awayTeam", "name country logo")
-      .populate("tournament", "name year country");
-
-    if (global.sendMatchEvent) {
-      global.sendMatchEvent(matchId, {
-        type,
-        minute,
-        player,
-        team,
-        description: newEvent.description,
-      });
-    }
-
-    res.json({ message: "Event added", match: updated });
-  } catch (err) {
-    res.status(500).json({ message: "Error adding event", error: err.message });
-  }
-});
-
-// ✏️ تحديث الحالة (admin/editor)
-router.put("/:id/status", requireAuth, authorize("match:edit"), async (req, res) => {
-  try {
-    const { status } = req.body;
-    const matchId = req.params.id;
-
-    if (!["scheduled", "live", "half-time", "finished"].includes(status)) {
-      return res.status(400).json({ message: "Invalid status. Use: scheduled, live, half-time, finished" });
-    }
-
-    const updated = await Match.findByIdAndUpdate(
-      matchId,
-      { status },
-      { new: true, runValidators: true }
-    )
-      .populate("homeTeam", "name country logo")
-      .populate("awayTeam", "name country logo")
-      .populate("tournament", "name year country");
-
-    if (!updated) return res.status(404).json({ message: "Match not found" });
-
-    if (global.sendMatchStatusUpdate) {
-      global.sendMatchStatusUpdate(matchId, status);
-    }
-
-    res.json({ message: "Status updated", match: updated });
-  } catch (err) {
-    res.status(500).json({ message: "Error updating status", error: err.message });
-  }
-});
-
-// ✏️ تعديل عام (admin/editor)
-router.put("/:id", requireAuth, authorize("match:edit"), async (req, res) => {
-  try {
-    const updated = await Match.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    })
-      .populate("homeTeam", "name country logo")
-      .populate("awayTeam", "name country logo")
-      .populate("tournament", "name year country");
-
-    if (!updated) return res.status(404).json({ message: "Match not found" });
-
-    res.json({ message: "Match updated", match: updated });
-  } catch (err) {
-    res.status(500).json({ message: "Error updating match", error: err.message });
-  }
-});
-
-// 🗑️ حذف (admin)
+// 🗑️ حذف مباراة
 router.delete("/:id", requireAuth, authorize("match:delete"), async (req, res) => {
   try {
     const deleted = await Match.findByIdAndDelete(req.params.id);
     if (!deleted) return res.status(404).json({ message: "Match not found" });
-
-    res.json({ message: "Match deleted successfully" });
+    res.json({ message: "Match deleted" });
   } catch (err) {
     res.status(500).json({ message: "Error deleting match", error: err.message });
   }

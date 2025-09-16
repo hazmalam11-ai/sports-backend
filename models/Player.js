@@ -1,39 +1,95 @@
-
 const mongoose = require("mongoose");
 
 const PlayerSchema = new mongoose.Schema(
   {
-    name: { type: String, required: true, trim: true },
+    apiId: {
+      type: Number, // ID من API-Sports
+      unique: true,
+      index: true,
+    },
+    name: {
+      type: String,
+      required: true,
+      trim: true,
+    },
     age: { type: Number },
-    position: { type: String, required: true }, // مركز اللاعب
-    // ربط اللاعب بالفريق
-    team: { type: mongoose.Schema.Types.ObjectId, ref: "Team", required: true }
+    position: {
+      type: String,
+      required: true,
+      trim: true,
+    }, // مركز اللاعب
+    nationality: {
+      type: String,
+      default: "",
+      trim: true,
+    },
+    photo: {
+      type: String,
+      default: "",
+    },
+    birth: {
+      date: { type: Date },
+      place: { type: String, default: "" },
+      country: { type: String, default: "" },
+    },
+    height: {
+      type: String,
+      default: "",
+    },
+    weight: {
+      type: String,
+      default: "",
+    },
+
+    // ✅ ربط اللاعب بالفريق
+    team: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "Team",
+      required: true,
+    },
+
+    // ✅ إحصائيات إضافية (اختيارية)
+    stats: {
+      appearances: { type: Number, default: 0 },
+      goals: { type: Number, default: 0 },
+      assists: { type: Number, default: 0 },
+      yellowCards: { type: Number, default: 0 },
+      redCards: { type: Number, default: 0 },
+    },
   },
   { timestamps: true }
 );
 
-// ✅ Hook لتحديث قائمة اللاعبين في الفريق عند إضافة لاعب
-PlayerSchema.post("save", async function (doc, next) {
-  try {
-    const Team = mongoose.model("Team");
-    await Team.findByIdAndUpdate(doc.team, { $addToSet: { players: doc._id } });
-    next();
-  } catch (err) {
-    next(err);
-  }
+// ✅ Virtual: يجيب اسم الفريق مباشرة
+PlayerSchema.virtual("teamName", {
+  ref: "Team",
+  localField: "team",
+  foreignField: "_id",
+  justOne: true,
+  options: { select: "name country" },
 });
 
-// ✅ Hook لتحديث الفريق عند حذف اللاعب
-PlayerSchema.post("findOneAndDelete", async function (doc, next) {
-  try {
-    if (doc) {
-      const Team = mongoose.model("Team");
-      await Team.findByIdAndUpdate(doc.team, { $pull: { players: doc._id } });
-    }
-    next();
-  } catch (err) {
-    next(err);
-  }
-});
+// ✅ Static Method: يجيب اللاعب بالـ API ID
+PlayerSchema.statics.findByApiId = function (apiId) {
+  return this.findOne({ apiId }).populate("team", "name country logo");
+};
 
-module.exports = mongoose.model("Player", PlayerSchema);
+// ✅ Method: يجيب اللاعب + إحصائياته
+PlayerSchema.methods.getProfile = function () {
+  return {
+    id: this._id,
+    name: this.name,
+    age: this.age,
+    position: this.position,
+    nationality: this.nationality,
+    photo: this.photo,
+    team: this.team,
+    stats: this.stats,
+  };
+};
+
+// ✅ إظهار الـ virtuals
+PlayerSchema.set("toObject", { virtuals: true });
+PlayerSchema.set("toJSON", { virtuals: true });
+
+module.exports = mongoose.models.Player || mongoose.model("Player", PlayerSchema);

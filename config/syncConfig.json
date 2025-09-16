@@ -1,0 +1,15 @@
+{
+    "leagues": [
+      { "id": 39, "name": "Premier League", "season": 2024 },
+      { "id": 140, "name": "La Liga", "season": 2024 },
+      { "id": 135, "name": "Serie A", "season": 2024 },
+      { "id": 78, "name": "Bundesliga", "season": 2024 },
+      { "id": 61, "name": "Ligue 1", "season": 2024 }
+    ],
+    "teams": [
+      { "id": 33, "name": "Manchester United", "season": 2024 },
+      { "id": 34, "name": "Newcastle United", "season": 2024 },
+      { "id": 40, "name": "Liverpool", "season": 2024 },
+      { "id": 50, "name": "Manchester City", "season": 2024 }
+    ]
+  }

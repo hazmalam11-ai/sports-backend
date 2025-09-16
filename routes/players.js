@@ -1,8 +1,43 @@
+
+// routes/players.js
 const express = require("express");
 const Player = require("../models/Player");
 const { requireAuth, authorize } = require("../middlewares/auth");
+const { getPlayerInfo, getPlayerStats } = require("../services/footballAPI");
 
 const router = express.Router();
+
+/* ========================
+    API-Football Endpoints
+   ======================== */
+
+// 📌 جلب بيانات لاعب من API
+router.get("/api/:id", async (req, res, next) => {
+  try {
+    const player = await getPlayerInfo(req.params.id);
+    if (!player) {
+      return res.status(404).json({ message: "Player not found in API" });
+    }
+    res.json(player);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 📌 جلب إحصائيات لاعب من API
+router.get("/api/:id/stats", async (req, res, next) => {
+  try {
+    const season = new Date().getFullYear(); // الموسم الحالي
+    const stats = await getPlayerStats(req.params.id, season);
+    res.json(stats);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/* ========================
+    MongoDB Endpoints
+   ======================== */
 
 // ➕ إنشاء لاعب (admin/editor)
 router.post("/", requireAuth, authorize("team:create"), async (req, res, next) => {
@@ -20,7 +55,7 @@ router.post("/", requireAuth, authorize("team:create"), async (req, res, next) =
   }
 });
 
-// 📌 كل اللاعبين (مفتوحة)
+// 📌 كل اللاعبين (من DB)
 router.get("/", async (req, res, next) => {
   try {
     const players = await Player.find().populate("team", "name country");
@@ -30,7 +65,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-// 📌 لاعب واحد
+// 📌 لاعب واحد (من DB)
 router.get("/:id", async (req, res, next) => {
   try {
     const player = await Player.findById(req.params.id).populate("team", "name country");
@@ -44,7 +79,7 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-// ✏️ تحديث لاعب
+// ✏️ تحديث لاعب (من DB)
 router.put("/:id", requireAuth, authorize("team:update"), async (req, res, next) => {
   try {
     const updated = await Player.findByIdAndUpdate(req.params.id, req.body, {
@@ -61,7 +96,7 @@ router.put("/:id", requireAuth, authorize("team:update"), async (req, res, next)
   }
 });
 
-// 🗑️ حذف لاعب
+// 🗑️ حذف لاعب (من DB)
 router.delete("/:id", requireAuth, authorize("team:delete"), async (req, res, next) => {
   try {
     const deleted = await Player.findByIdAndDelete(req.params.id);
@@ -76,8 +111,6 @@ router.delete("/:id", requireAuth, authorize("team:delete"), async (req, res, ne
 });
 
 module.exports = router;
-
-
 
 
 

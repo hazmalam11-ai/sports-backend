@@ -1,4 +1,4 @@
-// server.js (Enhanced with Socket.io)
+// server.js (Enhanced with Socket.io + Football API + Sync Services)
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -11,7 +11,15 @@ const http = require("http");
 const { Server } = require("socket.io");
 const errorHandler = require("./middlewares/errorHandler");
 
+// ✅ تحميل متغيرات البيئة
 dotenv.config();
+
+// ✅ تحقق من API Key
+if (!process.env.FOOTBALL_API_KEY) {
+  console.error("❌ Football API Key is missing! أضف FOOTBALL_API_KEY في ملف .env");
+} else {
+  console.log("⚽ Using API KEY:", process.env.FOOTBALL_API_KEY);
+}
 
 const app = express();
 const server = http.createServer(app);
@@ -83,6 +91,7 @@ const newsRoutes = require("./routes/news");
 const commentRoutes = require("./routes/comments");
 const likesRoutes = require("./routes/likes");
 const dashboardRoutes = require("./routes/dashboard");
+const footballRoutes = require("./routes/football"); // ✅ Football API Routes
 
 // ✅ Use Routes
 app.use("/auth", authRoutes);
@@ -95,34 +104,30 @@ app.use("/news", newsRoutes);
 app.use("/comments", commentRoutes);
 app.use("/likes", likesRoutes);
 app.use("/dashboard", dashboardRoutes);
+app.use("/api/football", footballRoutes); // ✅ Football API endpoints
 
 // ===============================
 // ✅ Socket.io Live Updates
 io.on("connection", (socket) => {
   console.log(`👤 User connected: ${socket.id}`);
 
-  // ✅ Join specific match room
   socket.on("join-match", (matchId) => {
     socket.join(`match-${matchId}`);
     console.log(`👤 User ${socket.id} joined match ${matchId}`);
   });
 
-  // ✅ Leave match room
   socket.on("leave-match", (matchId) => {
     socket.leave(`match-${matchId}`);
     console.log(`👤 User ${socket.id} left match ${matchId}`);
   });
 
-  // ✅ Handle disconnect
   socket.on("disconnect", () => {
     console.log(`👋 User disconnected: ${socket.id}`);
   });
 });
 
 // ===============================
-// ✅ Live Match Updates Functions (تستدعيها من الـ API أو Cron Jobs)
-
-// دالة لإرسال تحديث Live Score
+// ✅ Live Match Updates Functions
 const sendLiveScoreUpdate = (matchId, scoreData) => {
   io.to(`match-${matchId}`).emit("score-update", {
     matchId,
@@ -132,11 +137,10 @@ const sendLiveScoreUpdate = (matchId, scoreData) => {
   });
 };
 
-// دالة لإرسال أحداث المباراة
 const sendMatchEvent = (matchId, eventData) => {
   io.to(`match-${matchId}`).emit("match-event", {
     matchId,
-    type: eventData.type, // 'goal', 'card', 'substitution'
+    type: eventData.type,
     minute: eventData.minute,
     player: eventData.player,
     team: eventData.team,
@@ -145,25 +149,22 @@ const sendMatchEvent = (matchId, eventData) => {
   });
 };
 
-// دالة لإرسال تحديث حالة المباراة
 const sendMatchStatusUpdate = (matchId, status) => {
   io.to(`match-${matchId}`).emit("match-status", {
     matchId,
-    status, // 'live', 'half-time', 'finished'
+    status,
     timestamp: new Date(),
   });
 };
 
-// اجعل هذه الدالات متاحة عالمياً
 global.sendLiveScoreUpdate = sendLiveScoreUpdate;
 global.sendMatchEvent = sendMatchEvent;
 global.sendMatchStatusUpdate = sendMatchStatusUpdate;
 
 // ===============================
-// ✅ Array مؤقتة لتخزين المستخدمين
+// ✅ Array مؤقتة لتسجيل المستخدمين
 let users = [];
 
-// ✅ تسجيل مستخدم جديد
 app.post("/api/register", (req, res) => {
   const { username, password } = req.body;
 
@@ -179,7 +180,6 @@ app.post("/api/register", (req, res) => {
   res.json({ message: "تم التسجيل بنجاح ✅", user: newUser });
 });
 
-// ✅ تسجيل دخول
 app.post("/api/login", (req, res) => {
   const { username, password } = req.body;
 
@@ -224,7 +224,13 @@ app.get("/api/test", (req, res) => {
 // ✅ Error Handler
 app.use(errorHandler);
 
-// ✅ Start server (استخدم server مش app)
+// ===============================
+// ✅ تشغيل Sync Service
+const { syncTodayMatches, syncLiveMatches } = require("./services/matchSync");
+setInterval(syncTodayMatches, 1000 * 60 * 30); // كل نص ساعة
+setInterval(syncLiveMatches, 1000 * 60 * 2);  // كل دقيقتين
+
+// ✅ Start server
 server.listen(PORT, () =>
   console.log(`🚀 Server with Socket.io running at http://localhost:${PORT}`)
 );

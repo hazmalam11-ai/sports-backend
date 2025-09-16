@@ -1,18 +1,24 @@
-
 const express = require("express");
 const router = express.Router();
-const Like = require("../models/Like"); // ✅ لازم يكون موجود
+const Like = require("../models/Like");
 const { requireAuth } = require("../middlewares/auth");
+
+/**
+ * ✅ الموديل Like لازم يكون فيه:
+ * { user, targetType, targetId }
+ * و Unique index على (user, targetType, targetId)
+ * عشان ميعملش دبل لايك
+ */
 
 // 🟢 إضافة لايك
 router.post("/", requireAuth, async (req, res, next) => {
   try {
     const { targetType, targetId } = req.body;
 
-    if (!["Comment", "Match"].includes(targetType)) {
+    if (!["Comment", "Match", "News"].includes(targetType)) {
       return res
         .status(400)
-        .json({ message: "targetType must be Comment or Match" });
+        .json({ message: "targetType must be Comment, Match or News" });
     }
 
     const like = await Like.create({
@@ -24,7 +30,6 @@ router.post("/", requireAuth, async (req, res, next) => {
     res.status(201).json({ message: "Liked successfully", like });
   } catch (err) {
     if (err.code === 11000) {
-      // Error من الـ unique index
       return res.status(400).json({ message: "You already liked this item" });
     }
     next(err);
@@ -52,31 +57,44 @@ router.delete("/", requireAuth, async (req, res, next) => {
   }
 });
 
-// 👀 عدد اللايكات + حالة المستخدم
-router.get("/:targetType/:targetId", requireAuth, async (req, res, next) => {
+// 👀 عدد اللايكات + حالة المستخدم (تصلح لأي كيان)
+router.get("/:targetType/:targetId", async (req, res, next) => {
   try {
     const { targetType, targetId } = req.params;
 
-    if (!["Comment", "Match"].includes(targetType)) {
+    if (!["Comment", "Match", "News"].includes(targetType)) {
       return res
         .status(400)
-        .json({ message: "targetType must be Comment or Match" });
+        .json({ message: "targetType must be Comment, Match or News" });
     }
 
     const count = await Like.countDocuments({ targetType, targetId });
 
-    const userLiked = await Like.exists({
-      user: req.user.id,
-      targetType,
-      targetId,
-    });
+    let userLiked = false;
+    if (req.user) {
+      userLiked = !!(await Like.exists({
+        user: req.user.id,
+        targetType,
+        targetId,
+      }));
+    }
 
     res.json({
       targetType,
       targetId,
       likes: count,
-      likedByUser: !!userLiked,
+      likedByUser: userLiked,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// 📌 إرجاع كل اللايكات الخاصة بمستخدم (ملف شخصي)
+router.get("/user/me", requireAuth, async (req, res, next) => {
+  try {
+    const likes = await Like.find({ user: req.user.id }).sort({ createdAt: -1 });
+    res.json(likes);
   } catch (err) {
     next(err);
   }
