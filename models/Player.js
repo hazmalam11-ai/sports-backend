@@ -7,39 +7,18 @@ const PlayerSchema = new mongoose.Schema(
       unique: true,
       index: true,
     },
-    name: {
-      type: String,
-      required: true,
-      trim: true,
-    },
+    name: { type: String, required: true, trim: true },
     age: { type: Number },
-    position: {
-      type: String,
-      required: true,
-      trim: true,
-    }, // مركز اللاعب
-    nationality: {
-      type: String,
-      default: "",
-      trim: true,
-    },
-    photo: {
-      type: String,
-      default: "",
-    },
+    position: { type: String, required: true, trim: true },
+    nationality: { type: String, default: "", trim: true },
+    photo: { type: String, default: "" },
     birth: {
       date: { type: Date },
       place: { type: String, default: "" },
       country: { type: String, default: "" },
     },
-    height: {
-      type: String,
-      default: "",
-    },
-    weight: {
-      type: String,
-      default: "",
-    },
+    height: { type: String, default: "" },
+    weight: { type: String, default: "" },
 
     // ✅ ربط اللاعب بالفريق
     team: {
@@ -48,7 +27,17 @@ const PlayerSchema = new mongoose.Schema(
       required: true,
     },
 
-    // ✅ إحصائيات إضافية (اختيارية)
+    // ✅ بيانات الفانتازي
+    price: { type: Number, default: 5 }, // سعر اللاعب
+    totalPoints: { type: Number, default: 0 }, // مجموع النقاط
+    gameweekPoints: [
+      {
+        gameweek: { type: Number },
+        points: { type: Number, default: 0 },
+      },
+    ],
+
+    // ✅ إحصائيات إضافية
     stats: {
       appearances: { type: Number, default: 0 },
       goals: { type: Number, default: 0 },
@@ -60,7 +49,7 @@ const PlayerSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
-// ✅ Virtual: يجيب اسم الفريق مباشرة
+// Virtual: اسم الفريق
 PlayerSchema.virtual("teamName", {
   ref: "Team",
   localField: "team",
@@ -69,12 +58,12 @@ PlayerSchema.virtual("teamName", {
   options: { select: "name country" },
 });
 
-// ✅ Static Method: يجيب اللاعب بالـ API ID
+// Static Method: البحث بالـ API ID
 PlayerSchema.statics.findByApiId = function (apiId) {
   return this.findOne({ apiId }).populate("team", "name country logo");
 };
 
-// ✅ Method: يجيب اللاعب + إحصائياته
+// Method: يجيب اللاعب + إحصائياته
 PlayerSchema.methods.getProfile = function () {
   return {
     id: this._id,
@@ -84,11 +73,13 @@ PlayerSchema.methods.getProfile = function () {
     nationality: this.nationality,
     photo: this.photo,
     team: this.team,
+    price: this.price,
+    totalPoints: this.totalPoints,
     stats: this.stats,
   };
 };
 
-// ✅ إظهار الـ virtuals
+// إظهار الـ virtuals
 PlayerSchema.set("toObject", { virtuals: true });
 PlayerSchema.set("toJSON", { virtuals: true });
 

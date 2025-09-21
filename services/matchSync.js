@@ -1,7 +1,9 @@
+// services/matchSync.js
 const footballAPI = require("./footballAPI");
 const Match = require("../models/Match");
 const Team = require("../models/Team");
 const Tournament = require("../models/Tournament");
+const { syncPlayers } = require("./playerSync"); // ✅ استدعاء مزامنة اللاعبين
 
 /**
  * ✅ مزامنة مباريات اليوم من Football API إلى MongoDB
@@ -71,9 +73,14 @@ const syncTodayMatches = async () => {
         },
         { upsert: true, new: true }
       );
+
+      // ✅ جلب لاعيبة الفريقين أوتوماتيك
+      const season = m.league.season;
+      await syncPlayers(m.teams.home.id, season);
+      await syncPlayers(m.teams.away.id, season);
     }
 
-    console.log("✅ Matches synced successfully!");
+    console.log("✅ Matches + Players synced successfully!");
   } catch (err) {
     console.error("❌ Error syncing matches:", err.message);
   }

@@ -1,4 +1,4 @@
-// server.js (Enhanced with Socket.io + Football API + Sync Services)
+// server.js (Enhanced with Socket.io + Football API + Fantasy + Sync Services)
 const express = require("express");
 const mongoose = require("mongoose");
 const dotenv = require("dotenv");
@@ -80,6 +80,7 @@ app.use((req, res, next) => {
   next();
 });
 
+// ===============================
 // ✅ Routes
 const authRoutes = require("./routes/auth");
 const teamRoutes = require("./routes/teams");
@@ -91,12 +92,19 @@ const newsRoutes = require("./routes/news");
 const commentRoutes = require("./routes/comments");
 const likesRoutes = require("./routes/likes");
 const dashboardRoutes = require("./routes/dashboard");
-const footballRoutes = require("./routes/football"); // ✅ Football API Routes
+const footballRoutes = require("./routes/football");
+
+// ✅ Fantasy Routes
+const fantasyTeamRoutes = require("./routes/fantasyTeams");
+const fantasyGameweekRoutes = require("./routes/fantasyGameweeks");
+const fantasyLeaderboardRoutes = require("./routes/fantasyLeaderboard");
+const fantasyScoringRoutes = require("./routes/fantasyScoring");
+const fantasyMiniLeaguesRoutes = require("./routes/fantasyMiniLeagues");
 
 // ✅ Use Routes
 app.use("/auth", authRoutes);
 app.use("/teams", teamRoutes);
-app.use("/players", playerRoutes);
+app.use("/api/players", playerRoutes);
 app.use("/coaches", coachRoutes);
 app.use("/tournaments", tournamentRoutes);
 app.use("/matches", matchRoutes);
@@ -104,7 +112,14 @@ app.use("/news", newsRoutes);
 app.use("/comments", commentRoutes);
 app.use("/likes", likesRoutes);
 app.use("/dashboard", dashboardRoutes);
-app.use("/api/football", footballRoutes); // ✅ Football API endpoints
+app.use("/api/football", footballRoutes);
+
+// ✅ Fantasy APIs
+app.use("/fantasy/teams", fantasyTeamRoutes);
+app.use("/fantasy/gameweeks", fantasyGameweekRoutes);
+app.use("/fantasy/leaderboard", fantasyLeaderboardRoutes);
+app.use("/fantasy/scoring", fantasyScoringRoutes);
+app.use("/fantasy/mini-leagues", fantasyMiniLeaguesRoutes);
 
 // ===============================
 // ✅ Socket.io Live Updates
@@ -214,11 +229,11 @@ app.post("/api/test-live-update", (req, res) => {
 
 // ✅ Test routes
 app.get("/", (req, res) => {
-  res.send("🚀 Football API with Live Updates running!");
+  res.send("🚀 Football API with Fantasy + Live Updates running!");
 });
 
 app.get("/api/test", (req, res) => {
-  res.json({ message: "Hello from backend with Socket.io!" });
+  res.json({ message: "Hello from backend with Socket.io + Fantasy!" });
 });
 
 // ✅ Error Handler
@@ -227,10 +242,25 @@ app.use(errorHandler);
 // ===============================
 // ✅ تشغيل Sync Service
 const { syncTodayMatches, syncLiveMatches } = require("./services/matchSync");
+const { updateGameweekPoints } = require("./services/fantasyScoring");
+
+// مزامنة المباريات
 setInterval(syncTodayMatches, 1000 * 60 * 30); // كل نص ساعة
 setInterval(syncLiveMatches, 1000 * 60 * 2);  // كل دقيقتين
 
+// تحديث النقاط (Fantasy) كل 5 دقايق
+setInterval(async () => {
+  try {
+    const activeGameweek = await require("./models/Gameweek").findOne({ isActive: true });
+    if (activeGameweek) {
+      await updateGameweekPoints(activeGameweek._id);
+    }
+  } catch (err) {
+    console.error("❌ Error updating fantasy points:", err.message);
+  }
+}, 1000 * 60 * 5);
+
 // ✅ Start server
 server.listen(PORT, () =>
-  console.log(`🚀 Server with Socket.io running at http://localhost:${PORT}`)
+  console.log(`🚀 Server with Fantasy running at http://localhost:${PORT}`)
 );
