@@ -6,17 +6,29 @@ const Tournament = require("../models/Tournament");
 const { syncPlayers } = require("./playerSync"); // ✅ استدعاء مزامنة اللاعبين
 
 /**
- * ✅ مزامنة مباريات اليوم من Football API إلى MongoDB
+ * ✅ مزامنة المباريات في فترة زمنية (افتراضي: أسبوع فات + أسبوع جاي)
  */
-const syncTodayMatches = async () => {
+const syncMatchesInRange = async (daysBack = 7, daysForward = 7) => {
   try {
-    console.log("⏳ Syncing today's matches...");
+    console.log(`⏳ Syncing matches from last ${daysBack} days to next ${daysForward} days...`);
 
-    const apiMatches = await footballAPI.getTodayMatches();
-    console.log("📥 API Today Matches Response:", JSON.stringify(apiMatches, null, 2));
+    const today = new Date();
+    const past = new Date(today);
+    past.setDate(today.getDate() - daysBack);
+    const future = new Date(today);
+    future.setDate(today.getDate() + daysForward);
+
+    // 🟢 صيغة التاريخ YYYY-MM-DD
+    const fromDate = past.toISOString().split("T")[0];
+    const toDate = future.toISOString().split("T")[0];
+
+    // 🟢 استخدم footballAPI مع تاريخ من-إلى
+    const apiMatches = await footballAPI.getMatchesInRange(fromDate, toDate);
+
+    console.log("📥 API Matches Response:", apiMatches?.length || 0);
 
     if (!apiMatches || apiMatches.length === 0) {
-      console.log("⚠️ No matches found for today from API");
+      console.log("⚠️ No matches found in this range from API");
       return;
     }
 
@@ -68,7 +80,7 @@ const syncTodayMatches = async () => {
           scoreB: m.goals.away ?? 0,
           date: new Date(m.fixture.date),
           venue: m.fixture.venue?.name || "Unknown",
-          status: m.fixture.status.short === "LIVE" ? "live" : "scheduled",
+          status: m.fixture.status.short === "LIVE" ? "live" : m.fixture.status.short,
           minute: m.fixture.status.elapsed || 0,
         },
         { upsert: true, new: true }
@@ -94,7 +106,7 @@ const syncLiveMatches = async () => {
     console.log("⏳ Syncing live matches...");
 
     const apiMatches = await footballAPI.getLiveMatches();
-    console.log("📥 API Live Matches Response:", JSON.stringify(apiMatches, null, 2));
+    console.log("📥 API Live Matches Response:", apiMatches?.length || 0);
 
     if (!apiMatches || apiMatches.length === 0) {
       console.log("⚠️ No live matches found from API");
@@ -120,4 +132,4 @@ const syncLiveMatches = async () => {
   }
 };
 
-module.exports = { syncTodayMatches, syncLiveMatches };
+module.exports = { syncMatchesInRange, syncLiveMatches };

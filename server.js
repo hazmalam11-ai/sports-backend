@@ -80,6 +80,9 @@ app.use((req, res, next) => {
   next();
 });
 
+// ✅ Static folder for uploads (🖼️ الصور)
+app.use("/uploads", express.static("uploads"));
+
 // ===============================
 // ✅ Routes
 const authRoutes = require("./routes/auth");
@@ -240,15 +243,10 @@ app.get("/api/test", (req, res) => {
 app.use(errorHandler);
 
 // ===============================
-// ✅ تشغيل Sync Service
-const { syncTodayMatches, syncLiveMatches } = require("./services/matchSync");
+// ✅ تشغيل Sync Services
 const { updateGameweekPoints } = require("./services/fantasyScoring");
 
-// مزامنة المباريات
-setInterval(syncTodayMatches, 1000 * 60 * 30); // كل نص ساعة
-setInterval(syncLiveMatches, 1000 * 60 * 2);  // كل دقيقتين
-
-// تحديث النقاط (Fantasy) كل 5 دقايق
+// 🟢 تحديث النقاط (Fantasy) كل 5 دقايق
 setInterval(async () => {
   try {
     const activeGameweek = await require("./models/Gameweek").findOne({ isActive: true });
@@ -259,6 +257,9 @@ setInterval(async () => {
     console.error("❌ Error updating fantasy points:", err.message);
   }
 }, 1000 * 60 * 5);
+
+// 🟢 Auto Sync System (Matches + Live)
+require("./services/autoSync.js"); // ✅ هنا الاصلاح
 
 // ✅ Start server
 server.listen(PORT, () =>

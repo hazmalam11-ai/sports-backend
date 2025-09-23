@@ -1,25 +1,61 @@
 const express = require("express");
+const multer = require("multer");
+const path = require("path");
+const fs = require("fs");
 const News = require("../models/News");
 const { requireAuth, authorize } = require("../middlewares/auth");
 
 const router = express.Router();
 
-// ➕ إنشاء خبر (admin, editor)
-router.post("/", requireAuth, authorize("admin", "editor"), async (req, res, next) => {
-  try {
-    const { title, content, imageUrl } = req.body;
-    if (!title || !content) {
-      res.status(400);
-      throw new Error("title and content are required");
+// 🔹 مكان تخزين الصور (uploads/news)
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, "../uploads/news");
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true }); // يعمل فولدر لو مش موجود
     }
-    const news = await News.create({ title, content, imageUrl, author: req.user?.id });
-    res.status(201).json({ message: "News created", news });
-  } catch (err) {
-    next(err);
-  }
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    cb(null, Date.now() + "-" + file.originalname);
+  },
 });
 
-// 📌 كل الأخبار (مفتوحة للجميع)
+const upload = multer({ storage });
+
+// ➕ إنشاء خبر (يدعم رفع صورة)
+router.post(
+  "/",
+  requireAuth,
+  authorize("admin", "editor"),
+  upload.single("image"), // هنا بنرفع صورة باسم field "image"
+  async (req, res, next) => {
+    try {
+      const { title, content, category } = req.body;
+      if (!title || !content) {
+        res.status(400);
+        throw new Error("title and content are required");
+      }
+
+      // لو فيه صورة
+      const imageUrl = req.file ? `/uploads/news/${req.file.filename}` : null;
+
+      const news = await News.create({
+        title,
+        content,
+        category,
+        imageUrl,
+        author: req.user?.id,
+      });
+
+      res.status(201).json({ message: "News created", news });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// 📌 كل الأخبار
 router.get("/", async (req, res, next) => {
   try {
     const { q } = req.query;
@@ -47,24 +83,38 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-// ✏️ تحديث خبر (admin, editor)
-router.put("/:id", requireAuth, authorize("admin", "editor"), async (req, res, next) => {
-  try {
-    const updated = await News.findByIdAndUpdate(req.params.id, req.body, {
-      new: true,
-      runValidators: true,
-    });
-    if (!updated) {
-      res.status(404);
-      throw new Error("News not found");
-    }
-    res.json({ message: "News updated", news: updated });
-  } catch (err) {
-    next(err);
-  }
-});
+// ✏️ تحديث خبر
+router.put(
+  "/:id",
+  requireAuth,
+  authorize("admin", "editor"),
+  upload.single("image"),
+  async (req, res, next) => {
+    try {
+      const { title, content, category } = req.body;
+      const updateData = { title, content, category };
 
-// 🗑️ حذف خبر (admin فقط)
+      if (req.file) {
+        updateData.imageUrl = `/uploads/news/${req.file.filename}`;
+      }
+
+      const updated = await News.findByIdAndUpdate(req.params.id, updateData, {
+        new: true,
+        runValidators: true,
+      });
+
+      if (!updated) {
+        res.status(404);
+        throw new Error("News not found");
+      }
+      res.json({ message: "News updated", news: updated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// 🗑️ حذف خبر
 router.delete("/:id", requireAuth, authorize("admin"), async (req, res, next) => {
   try {
     const deleted = await News.findByIdAndDelete(req.params.id);

@@ -22,6 +22,7 @@
     "jsonwebtoken": "^9.0.0",
     "mongoose": "^7.8.7",
     "morgan": "^1.10.0",
+    "multer": "^2.0.2",
     "node-cron": "^4.2.1",
     "puppeteer": "^24.20.0",
     "socket.io": "^4.7.2"

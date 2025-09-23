@@ -9,7 +9,7 @@ class FootballAPIService {
     this.api = axios.create({
       baseURL: this.baseURL,
       headers: {
-        "x-apisports-key": this.apiKey, // ✅ المفتاح بيتسحب من .env
+        "x-apisports-key": this.apiKey,
       },
       timeout: 15000,
     });
@@ -40,7 +40,49 @@ class FootballAPIService {
     }
   }
 
-  // ✅ جلب مباراة محددة بالـ ID
+  // ✅ جلب مباريات بين تاريخين
+  async getMatchesInRange(fromDate, toDate) {
+    try {
+      const from = new Date(fromDate).toISOString().split("T")[0];
+      const to = new Date(toDate).toISOString().split("T")[0];
+
+      const response = await this.api.get("/fixtures", {
+        params: { from, to },
+      });
+
+      return response.data.response;
+    } catch (error) {
+      console.error("❌ Error in getMatchesInRange:", error.response?.data || error.message);
+      return [];
+    }
+  }
+
+  // ✅ جلب مباريات أسبوع فات + أسبوع جاي
+  async getMatchesOneWeekRange() {
+    try {
+      const today = new Date();
+
+      const fromDate = new Date(today);
+      fromDate.setDate(today.getDate() - 7);
+
+      const toDate = new Date(today);
+      toDate.setDate(today.getDate() + 7);
+
+      const from = fromDate.toISOString().split("T")[0];
+      const to = toDate.toISOString().split("T")[0];
+
+      const response = await this.api.get("/fixtures", {
+        params: { from, to },
+      });
+
+      return response.data.response;
+    } catch (error) {
+      console.error("❌ Error in getMatchesOneWeekRange:", error.response?.data || error.message);
+      return [];
+    }
+  }
+
+  // ✅ مباراة محددة
   async getMatchById(matchId) {
     try {
       const response = await this.api.get("/fixtures", { params: { id: matchId } });
@@ -51,7 +93,7 @@ class FootballAPIService {
     }
   }
 
-  // ✅ آخر مباريات فريق (افتراضي 5)
+  // ✅ آخر مباريات فريق
   async getTeamLastMatches(teamId, count = 5) {
     try {
       const response = await this.api.get("/fixtures", { params: { team: teamId, last: count } });
