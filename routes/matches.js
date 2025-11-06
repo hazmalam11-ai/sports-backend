@@ -1,199 +1,165 @@
 // routes/matches.js
 const express = require("express");
 const router = express.Router();
-const { filterMatches } = require("../middleware/leagueFilter");
+const axios = require("axios");
 
-// API functions used by frontend
-const {
-  getLiveMatches,
-  getMatchesByDate
-} = require("../services/footballAPI");
+// ✅ RapidAPI Football Endpoint
+const RAPID_API_BASE = "https://free-api-live-football-data.p.rapidapi.com";
+
+// ✅ Helper function to fetch from RapidAPI
+async function fetchFromRapidAPI(endpoint) {
+  try {
+    const response = await axios.get(`${RAPID_API_BASE}${endpoint}`, {
+      headers: {
+        "x-rapidapi-key": process.env.FOOTBALL_API_KEY,
+        "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com",
+      },
+      timeout: 15000,
+    });
+
+    return response.data;
+  } catch (error) {
+    console.error("❌ RapidAPI Fetch Error:", error.response?.data || error.message);
+    throw new Error(error.message || "Error fetching data from RapidAPI");
+  }
+}
 
 /* =========================
-   PUBLIC: DATABASE ENDPOINTS
+   RAPIDAPI MATCH ROUTES
    ========================= */
 
-// GET /matches (Matches from API-Football with optional date filtering)
-router.get("/", async (req, res) => {
-  try {
-    const { date, timezone, league, live } = req.query;
-    
-    // If date is provided, fetch from API-Football
-    if (date) {
-      // Use timezone from frontend or default to UTC
-      const userTimezone = timezone || 'UTC';
-      console.log(`📅 Fetching matches for date: ${date} (timezone: ${userTimezone})`);
-      
-      // Fetch matches from API-Football for the specified date
-      const apiData = await getMatchesByDate(date, userTimezone);
-      console.log(`📡 API Matches Response: ${apiData?.length || 0}`);
-      
-      if (!apiData || apiData.length === 0) {
-        console.log("⚠️ No matches found for the specified date");
-        return res.json([]);
-      }
-
-      //  priority sorting
-      // Get dynamic priority order from leagues configuration
-      const { getAllowedLeagues } = require('../config/leagues');
-      const allowedLeagues = getAllowedLeagues();
-      const priorityOrder = allowedLeagues
-        .sort((a, b) => a.priority - b.priority)
-        .map(league => league.id);
-      
-      let formattedMatches = apiData.map(match => ({
-        _id: match.fixture.id.toString(),
-        apiId: match.fixture.id,
-        homeTeam: {
-          name: match.teams.home.name,
-          logo: match.teams.home.logo,
-          id: match.teams.home.id
-        },
-        awayTeam: {
-          name: match.teams.away.name,
-          logo: match.teams.away.logo,
-          id: match.teams.away.id
-        },
-        scoreA: match.goals.home ?? 0,
-        scoreB: match.goals.away ?? 0,
-        date: match.fixture.date,
-        status: match.fixture.status.short,
-        minute: match.fixture.status.elapsed || 0,
-        venue: match.fixture.venue?.name || "Unknown Venue",
-        tournament: {
-          name: match.league.name,
-          country: match.league.country,
-          id: match.league.id,
-          logo: match.league.logo
-        },
-        timezone: userTimezone,
-        updatedAt: new Date(),
-        // Add priority for sorting
-        priority: priorityOrder.indexOf(match.league.id)
-      }));
-
-      // Apply league filtering (same as HTML template)
-      if (league && league !== 'all') {
-        const leagueId = parseInt(league);
-        formattedMatches = formattedMatches.filter(match => match.tournament.id === leagueId);
-        console.log(`🔍 Filtered by league ${leagueId}: ${formattedMatches.length} matches`);
-      }
-
-      if (live === 'true') {
-        const liveStatuses = ['1H', 'HT', '2H', 'ET', 'P'];
-        formattedMatches = formattedMatches.filter(match => liveStatuses.includes(match.status));
-        console.log(`🔴 Filtered live matches: ${formattedMatches.length} matches`);
-      }
-
-      // Apply league filtering to only show allowed leagues
-      formattedMatches = filterMatches(formattedMatches);
-      console.log(`🔍 League Filter: ${formattedMatches.length} matches after filtering`);
-
-      // Sort matches by priority (same as HTML template)
-      formattedMatches.sort((a, b) => {
-        const aPrio = a.priority;
-        const bPrio = b.priority;
-        
-        if (aPrio !== -1 && bPrio !== -1) return aPrio - bPrio; // Both are important
-        if (aPrio !== -1) return -1; // a is important, b is not
-        if (bPrio !== -1) return 1; // b is important, a is not
-        
-        return a.tournament.name.localeCompare(b.tournament.name); // Neither is important, sort alphabetically
-      });
-
-      console.log(`✅ Returning ${formattedMatches.length} matches for ${date}`);
-      return res.json(formattedMatches);
-    }
-    
-    // If no date provided, return empty array
-    res.json([]);
-  } catch (err) {
-    console.error("❌ Error fetching matches:", err);
-    res.status(500).json({ message: "Error fetching matches", error: err.message });
-  }
-});
-
-
-// GET /matches/live (Real-time from API-Football)
+// 🟢 LIVE MATCHES
 router.get("/live", async (req, res) => {
   try {
-    console.log("🔴 Fetching live matches from API-Football...");
-    
-    // Always fetch fresh live data from API-Football for real-time updates
-    const apiData = await getLiveMatches();
-    console.log(`📡 API Live Matches Response: ${apiData?.length || 0}`);
-    
-    if (!apiData || apiData.length === 0) {
-      console.log("⚠️ No live matches found from API");
+    console.log("🔴 Fetching LIVE matches from RapidAPI...");
+    const data = await fetchFromRapidAPI("/football-current-live");
+
+    if (!data || !data.response || data.response.length === 0) {
+      console.log("⚠️ No live matches found");
       return res.json([]);
     }
 
-    // Transform API data to match our frontend format with live indicators
-    const liveMatches = apiData.map(match => {
-      const status = match.fixture.status.short;
-      const elapsed = match.fixture.status.elapsed;
-      
-      // Determine live status and display text
-      let liveStatus = "LIVE";
-      let liveDisplay = "";
-      let isLive = false;
-      
-      if (status === "LIVE" || status === "1H" || status === "2H" || status === "HT") {
-        isLive = true;
-        if (status === "HT") {
-          liveDisplay = "HT";
-        } else if (status === "1H") {
-          liveDisplay = elapsed ? `${elapsed}'` : "1H";
-        } else if (status === "2H") {
-          liveDisplay = elapsed ? `${elapsed}'` : "2H";
-        } else {
-          liveDisplay = elapsed ? `${elapsed}'` : "LIVE";
-        }
-      }
-      
-      return {
-        _id: match.fixture.id.toString(),
-        apiId: match.fixture.id,
-        homeTeam: {
-          name: match.teams.home.name,
-          logo: match.teams.home.logo,
-          id: match.teams.home.id
+    const formatted = data.response.map((match) => ({
+      fixture: {
+        id: match.fixture_id || match.id,
+        date: match.match_time || match.date || new Date().toISOString(),
+        status: {
+          short: "LIVE",
+          long: "Live Match",
+          elapsed: match.minute || 0,
         },
-        awayTeam: {
-          name: match.teams.away.name,
-          logo: match.teams.away.logo,
-          id: match.teams.away.id
+      },
+      league: {
+        id: match.league_id || 0,
+        name: match.league_name || "Unknown League",
+        country: match.country || "Unknown",
+        logo: match.league_logo || "",
+      },
+      teams: {
+        home: {
+          id: match.home_team_id || 0,
+          name: match.home_team_name || "Home",
+          logo: match.home_team_logo || "",
         },
-        scoreA: match.goals.home ?? 0,
-        scoreB: match.goals.away ?? 0,
-        date: match.fixture.date,
-        status: status.toLowerCase(),
-        minute: elapsed || 0,
-        liveStatus: liveStatus,
-        liveDisplay: liveDisplay,
-        isLive: isLive,
-        venue: match.fixture.venue?.name || "Unknown Venue",
-        tournament: {
-          name: match.league.name,
-          country: match.league.country,
-          id: match.league.id
+        away: {
+          id: match.away_team_id || 0,
+          name: match.away_team_name || "Away",
+          logo: match.away_team_logo || "",
         },
-        updatedAt: new Date()
-      };
-    });
+      },
+      goals: {
+        home: match.home_team_score ?? 0,
+        away: match.away_team_score ?? 0,
+      },
+    }));
 
-    // Apply league filtering to only show allowed leagues
-    const filteredLiveMatches = filterMatches(liveMatches);
-    console.log(`🔍 League Filter: ${liveMatches.length} → ${filteredLiveMatches.length} live matches after filtering`);
-
-    console.log(`✅ Returning ${filteredLiveMatches.length} live matches directly from API`);
-    res.json(filteredLiveMatches);
+    console.log(`✅ Returning ${formatted.length} live matches`);
+    res.json(formatted);
   } catch (err) {
-    console.error("❌ Error fetching live matches:", err);
+    console.error("❌ Error fetching live matches:", err.message);
     res.status(500).json({ error: "Error fetching live matches", details: err.message });
   }
 });
 
+// 🟢 TODAY MATCHES
+router.get("/today", async (req, res) => {
+  try {
+    console.log("📅 Fetching TODAY matches from RapidAPI...");
+    const data = await fetchFromRapidAPI("/football-today");
 
+    if (!data || !data.response || data.response.length === 0) {
+      console.log("⚠️ No matches found for today");
+      return res.json([]);
+    }
+
+    const formatted = data.response.map((match) => ({
+      fixture: {
+        id: match.fixture_id || match.id,
+        date: match.match_time || match.date || new Date().toISOString(),
+        status: {
+          short: match.status || "NS",
+          long: match.status || "Not Started",
+          elapsed: 0,
+        },
+      },
+      league: {
+        id: match.league_id || 0,
+        name: match.league_name || "Unknown League",
+        country: match.country || "Unknown",
+        logo: match.league_logo || "",
+      },
+      teams: {
+        home: {
+          id: match.home_team_id || 0,
+          name: match.home_team_name || "Home",
+          logo: match.home_team_logo || "",
+        },
+        away: {
+          id: match.away_team_id || 0,
+          name: match.away_team_name || "Away",
+          logo: match.away_team_logo || "",
+        },
+      },
+      goals: {
+        home: match.home_team_score ?? 0,
+        away: match.away_team_score ?? 0,
+      },
+    }));
+
+    console.log(`✅ Returning ${formatted.length} today's matches`);
+    res.json(formatted);
+  } catch (err) {
+    console.error("❌ Error fetching today's matches:", err.message);
+    res.status(500).json({ error: "Error fetching today's matches", details: err.message });
+  }
+});
+
+// 🟢 LEAGUES LIST
+router.get("/leagues", async (req, res) => {
+  try {
+    console.log("🏆 Fetching leagues from RapidAPI...");
+    const data = await fetchFromRapidAPI("/football-leagues");
+
+    if (!data || !data.response || data.response.length === 0) {
+      console.log("⚠️ No leagues found");
+      return res.json([]);
+    }
+
+    const formatted = data.response.map((league) => ({
+      league: {
+        id: league.league_id || 0,
+        name: league.league_name || "Unknown League",
+        country: league.country || "Unknown",
+        logo: league.league_logo || "",
+      },
+    }));
+
+    console.log(`✅ Returning ${formatted.length} leagues`);
+    res.json(formatted);
+  } catch (err) {
+    console.error("❌ Error fetching leagues:", err.message);
+    res.status(500).json({ error: "Error fetching leagues", details: err.message });
+  }
+});
 
 module.exports = router;
