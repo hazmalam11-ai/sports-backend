@@ -1,10 +1,13 @@
 // routes/insights.js
 const express = require("express");
+const axios = require("axios");
 const router = express.Router();
-const footballAPI = require("../services/footballAPI");
-const Match = require("../models/match"); // 🟢 Model
 
-// 🧠 AI-Powered Analysis Engine
+// ⚙️ RapidAPI Football Base
+const RAPID_API_BASE = "https://free-api-live-football-data.p.rapidapi.com";
+const API_KEY = process.env.FOOTBALL_API_KEY;
+
+// 🧠 التحليل الذكي
 class AdvancedFootballAnalyzer {
   constructor() {
     this.performanceWeights = {
@@ -22,52 +25,44 @@ class AdvancedFootballAnalyzer {
   }
 
   calculatePerformanceIndex(player) {
-    const stats = player.statistics[0];
-    if (!stats) return 0;
+    const stats = player.stats || {};
     let index = 0;
-    index += (stats.goals?.total || 0) * this.performanceWeights.goals;
-    index += (stats.goals?.assists || 0) * this.performanceWeights.assists;
-    index += (stats.passes?.key || 0) * this.performanceWeights.keyPasses;
-    index += (stats.shots?.total || 0) * this.performanceWeights.shots;
-    index += (parseFloat(stats.passes?.accuracy || 0) / 100) * this.performanceWeights.passAccuracy;
-    index += (stats.dribbles?.success || 0) * this.performanceWeights.dribbles;
-    index += (stats.tackles?.total || 0) * this.performanceWeights.tackles;
-    index += (stats.tackles?.interceptions || 0) * this.performanceWeights.interceptions;
-    index += (stats.goals?.saves || 0) * this.performanceWeights.saves;
-    index += (parseFloat(stats.games?.rating || 0)) * this.performanceWeights.rating;
+    index += (stats.goals || 0) * this.performanceWeights.goals;
+    index += (stats.assists || 0) * this.performanceWeights.assists;
+    index += (stats.keyPasses || 0) * this.performanceWeights.keyPasses;
+    index += (stats.shots || 0) * this.performanceWeights.shots;
+    index += (stats.passAccuracy || 0) * this.performanceWeights.passAccuracy;
+    index += (stats.dribbles || 0) * this.performanceWeights.dribbles;
+    index += (stats.tackles || 0) * this.performanceWeights.tackles;
+    index += (stats.interceptions || 0) * this.performanceWeights.interceptions;
+    index += (stats.saves || 0) * this.performanceWeights.saves;
+    index += (stats.rating || 0) * this.performanceWeights.rating;
     return Math.round(index * 100) / 100;
   }
 
   detectPlayerRole(player) {
-    const stats = player.statistics[0];
-    if (!stats) return "لاعب";
-    const saves = stats.goals?.saves || 0;
-    const tackles = stats.tackles?.total || 0;
-    const interceptions = stats.tackles?.interceptions || 0;
-    const passes = stats.passes?.total || 0;
-    const dribbles = stats.dribbles?.success || 0;
-    const shots = stats.shots?.total || 0;
+    const stats = player.stats || {};
+    const { saves, tackles, interceptions, passes, dribbles, shots } = stats;
 
     if (saves > 0) return "حارس مرمى 🧤";
-    if (tackles + interceptions > 5) return "مدافع 🛡️";
-    if (passes > 50 && dribbles < 3) return "صانع ألعاب 🎭";
-    if (dribbles > 3 || shots > 3) return "مهاجم ⚔️";
-    if (passes > 30) return "لاعب وسط 🎯";
+    if ((tackles || 0) + (interceptions || 0) > 5) return "مدافع 🛡️";
+    if ((passes || 0) > 50 && (dribbles || 0) < 3) return "صانع ألعاب 🎭";
+    if ((dribbles || 0) > 3 || (shots || 0) > 3) return "مهاجم ⚔️";
+    if ((passes || 0) > 30) return "لاعب وسط 🎯";
     return "لاعب متعدد المهام 🔄";
   }
 
   analyzeCriticalMoments(player) {
-    const stats = player.statistics[0];
+    const stats = player.stats || {};
     let moments = [];
-    if (stats.goals?.total > 0) moments.push(`⚽ سجل ${stats.goals.total} هدف`);
-    if (stats.goals?.assists > 0) moments.push(`🎁 صنع ${stats.goals.assists} فرصة`);
-    if (stats.cards?.red > 0) moments.push(`🟥 حصل على طرد`);
-    if (stats.penalties?.saved > 0) moments.push(`🥅 أنقذ ${stats.penalties.saved} ركلة جزاء`);
+    if (stats.goals > 0) moments.push(`⚽ سجل ${stats.goals} هدف`);
+    if (stats.assists > 0) moments.push(`🎁 صنع ${stats.assists} فرصة`);
+    if (stats.redCards > 0) moments.push(`🟥 حصل على طرد`);
+    if (stats.saves > 0) moments.push(`🥅 أنقذ ${stats.saves} تسديدة خطيرة`);
     return moments;
   }
 
-  analyzePlayerFatigue(player) {
-    const minutes = player.statistics[0]?.games?.minutes || 0;
+  analyzePlayerFatigue(minutes) {
     if (minutes < 30) return "⚡ طازج";
     if (minutes > 80) return "😴 مرهق";
     if (minutes > 60) return "💪 متوسط الإرهاق";
@@ -75,7 +70,7 @@ class AdvancedFootballAnalyzer {
   }
 }
 
-// 🧠 Advanced Insights Generator
+// 🧠 مولد الـ Insights
 function generateAdvancedInsights(players, matchData = {}) {
   const analyzer = new AdvancedFootballAnalyzer();
   let insights = [];
@@ -84,83 +79,88 @@ function generateAdvancedInsights(players, matchData = {}) {
     return ["❌ لا توجد بيانات لهذه المباراة"];
   }
 
-  // 🏆 أفضل لاعب
+  // 🏆 حساب الأفضل
   const rankedPlayers = players
-    .filter(p => p.statistics[0]?.games?.minutes > 10)
+    .filter(p => p.minutes > 10)
     .map(p => ({ ...p, performanceIndex: analyzer.calculatePerformanceIndex(p) }))
     .sort((a, b) => b.performanceIndex - a.performanceIndex);
 
   if (rankedPlayers.length > 0) {
     const mvp = rankedPlayers[0];
     insights.push({
-      text: `👑 MVP: ${mvp.player.name} (${analyzer.detectPlayerRole(mvp)}) - ${mvp.performanceIndex}`,
+      text: `👑 MVP: ${mvp.name} (${analyzer.detectPlayerRole(mvp)}) - ${mvp.performanceIndex}`,
       player: {
-        id: mvp.player.id,
-        name: mvp.player.name,
-        photo: mvp.player.id ? `https://media.api-sports.io/football/players/${mvp.player.id}.png` : null,
+        id: mvp.id,
+        name: mvp.name,
+        photo: mvp.photo,
         role: analyzer.detectPlayerRole(mvp),
         perf: mvp.performanceIndex
       }
     });
   }
 
-  // 🎯 تحليل تمريرات - 🔥 تسديدات - 🛡️ دفاع - 🎪 مراوغات - 🧤 حارس مرمى
-  // ... (نفس التحليلات اللي شرحناها قبل كده، كلها متضافه)
-
   return insights.length > 0 ? insights : ["🤔 لم يتم العثور على Insights"];
 }
 
-// 🚀 API Endpoint
+// 🚀 API Endpoint (RapidAPI Integration)
 router.get("/match/:matchId", async (req, res) => {
   try {
     const { matchId } = req.params;
     const startTime = Date.now();
     const analyzer = new AdvancedFootballAnalyzer();
 
-    // 🟢 جلب اللاعبين
-    const axios = require("axios");
-    const apiKey = process.env.FOOTBALL_API_KEY;
-    
-    const api = axios.create({
-      baseURL: "https://v3.football.api-sports.io",
+    console.log(`🧩 Fetching match insights for ID: ${matchId}`);
+
+    // ✅ استدعاء البيانات من RapidAPI
+    const matchRes = await axios.get(`${RAPID_API_BASE}/football-get-match-detail?fixtureid=${matchId}`, {
       headers: {
-        "x-apisports-key": apiKey,
-      },
-      timeout: 15000,
+        "x-rapidapi-key": API_KEY,
+        "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com"
+      }
     });
 
-    const playersResponse = await api.get("/fixtures/players", { params: { fixture: matchId } });
-    const players = playersResponse.data.response.flatMap(t => t.players);
+    const match = matchRes.data?.response?.[0];
+    if (!match) {
+      return res.status(404).json({ message: "Match not found" });
+    }
 
-    // 🟢 جلب بيانات المباراة
-    const fixtureResponse = await api.get("/fixtures", { params: { id: matchId } });
-    const fixture = fixtureResponse.data.response[0];
+    // ✅ استدعاء اللاعبين
+    const playersRes = await axios.get(`${RAPID_API_BASE}/football-get-player-match-stats?fixtureid=${matchId}`, {
+      headers: {
+        "x-rapidapi-key": API_KEY,
+        "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com"
+      }
+    });
 
-    // 🧠 التحليل
-    const insights = generateAdvancedInsights(players, { fixture });
+    const players = playersRes.data?.response || [];
+    console.log(`📊 Players fetched: ${players.length}`);
+
+    // 🧠 تحليل الأداء
+    const insights = generateAdvancedInsights(players, { match });
 
     // 🏆 أفضل 11 لاعب
     const best11 = players
       .map(p => ({
-        id: p.player.id,
-        name: p.player.name,
-        photo: p.player.id ? `https://media.api-sports.io/football/players/${p.player.id}.png` : null,
+        id: p.player_id || 0,
+        name: p.name || "Unknown",
+        photo: p.photo || "",
         role: analyzer.detectPlayerRole(p),
         perf: analyzer.calculatePerformanceIndex(p)
       }))
       .sort((a, b) => b.perf - a.perf)
       .slice(0, 11);
 
+    // ✅ استجابة التحليل
     res.json({
       success: true,
       matchId,
       processingTime: `${Date.now() - startTime}ms`,
       dataQuality: players.length > 0 ? "🟢 عالية" : "🔴 ضعيفة",
       matchInfo: {
-        venue: fixture?.fixture?.venue?.name,
-        tournament: fixture?.league?.name,
-        teams: `${fixture?.teams?.home?.name} vs ${fixture?.teams?.away?.name}`,
-        score: `${fixture?.goals?.home} - ${fixture?.goals?.away}`,
+        venue: match?.venue_name || "غير معروف",
+        tournament: match?.league_name || "غير معروف",
+        teams: `${match?.home_team_name} vs ${match?.away_team_name}`,
+        score: `${match?.home_team_score} - ${match?.away_team_score}`,
       },
       analysis: {
         insights,
@@ -180,7 +180,7 @@ router.get("/match/:matchId", async (req, res) => {
     res.status(500).json({
       error: "analysis failed",
       message: err.message,
-      suggestion: "تأكد من الـ matchId وصحة البيانات من API"
+      suggestion: "تأكد من صحة matchId أو من توفر البيانات في RapidAPI"
     });
   }
 });
