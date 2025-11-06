@@ -20,7 +20,7 @@ class FootballAPI {
   ========================= */
   async getLiveMatches() {
     try {
-      const res = await this.api.get("/football-current-live");
+      const res = await this.api.get("/livescores/matches/events/football-current-live");
       const live = res.data?.response?.live || res.data?.response || [];
       console.log(`📡 Live matches fetched from API: ${live.length}`);
 
