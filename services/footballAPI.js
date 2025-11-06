@@ -1,370 +1,342 @@
 // services/footballAPI.js
 const axios = require("axios");
 
-class FootballAPIService {
+class FootballAPI {
   constructor() {
-    this.baseURL = "https://free-api-live-football-data.p.rapidapi.com";
-    this.apiKey = process.env.FOOTBALL_API_KEY;
-
     this.api = axios.create({
-      baseURL: this.baseURL,
+      baseURL: "https://free-api-live-football-data.p.rapidapi.com",
       headers: {
-        "x-rapidapi-key": this.apiKey,
         "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com",
+        "x-rapidapi-key": process.env.FOOTBALL_API_KEY,
       },
       timeout: 15000,
     });
 
-    console.log("⚙️ Using RapidAPI KEY:", this.apiKey ? "Loaded ✅" : "❌ Missing");
+    console.log("⚙️ Using New RapidAPI Football Data ✅");
   }
 
-  // ✅ جلب المباريات المباشرة
+  /* =========================
+      📡 LIVE SCORES
+  ========================= */
   async getLiveMatches() {
     try {
-      console.log("🔴 Fetching LIVE matches from RapidAPI...");
-      const response = await this.api.get("/football-current-live");
-      const data = response.data.response || [];
-
-      console.log(`📡 RapidAPI: ${data.length} live matches found`);
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getLiveMatches:", error.response?.data || error.message);
+      const res = await this.api.get("/football-current-live");
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching live matches:", err.message);
       return [];
     }
   }
 
-  // ✅ جلب مباريات اليوم
-  async getTodayMatches() {
-    try {
-      console.log("📅 Fetching today's matches from RapidAPI...");
-      const response = await this.api.get("/football-today");
-      const data = response.data.response || [];
-
-      console.log(`📡 RapidAPI: ${data.length} matches found for today`);
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getTodayMatches:", error.response?.data || error.message);
-      return [];
-    }
-  }
-
-  // ✅ جلب مباريات أمس
-  async getYesterdayMatches() {
-    try {
-      console.log("📅 Fetching yesterday's matches...");
-      const response = await this.api.get("/football-yesterday");
-      const data = response.data.response || [];
-
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getYesterdayMatches:", error.response?.data || error.message);
-      return [];
-    }
-  }
-
-  // ✅ جلب مباريات غدًا
-  async getTomorrowMatches() {
-    try {
-      console.log("📅 Fetching tomorrow's matches...");
-      const response = await this.api.get("/football-tomorrow");
-      const data = response.data.response || [];
-
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getTomorrowMatches:", error.response?.data || error.message);
-      return [];
-    }
-  }
-
-  // ✅ جلب مباريات بتاريخ محدد
+  /* =========================
+      📅 FIXTURES
+  ========================= */
   async getMatchesByDate(date) {
     try {
-      const dateStr = new Date(date).toISOString().split("T")[0];
-      console.log(`📅 Fetching matches by date: ${dateStr}`);
-
-      const response = await this.api.get(`/football-date/${dateStr}`);
-      const data = response.data.response || [];
-
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getMatchesByDate:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-matches-by-date", {
+        params: { date },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching matches by date:", err.message);
       return [];
     }
   }
 
-  // ✅ جلب مباريات بين تاريخين
-  async getMatchesInRange(fromDate, toDate) {
+  async getLeagueMatches(leagueid) {
     try {
-      const from = new Date(fromDate).toISOString().split("T")[0];
-      const to = new Date(toDate).toISOString().split("T")[0];
-      console.log(`📆 Fetching matches range: ${from} → ${to}`);
-
-      const response = await this.api.get(`/football-date-range/${from}/${to}`);
-      const data = response.data.response || [];
-
-      return data.map(this._formatMatch);
-    } catch (error) {
-      console.error("❌ Error in getMatchesInRange:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-matches-by-league", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching matches by league:", err.message);
       return [];
     }
   }
 
-  // ✅ جلب مباريات أسبوع
-  async getMatchesOneWeekRange() {
-    const today = new Date();
-    const from = new Date(today);
-    from.setDate(today.getDate() - 7);
-    const to = new Date(today);
-    to.setDate(today.getDate() + 7);
-
-    return this.getMatchesInRange(from, to);
-  }
-
-  // ✅ مباراة محددة
-  async getMatchById(matchId) {
+  /* =========================
+      🏆 LEAGUES
+  ========================= */
+  async getAllLeagues() {
     try {
-      const response = await this.api.get(`/football-fixture/${matchId}`);
-      const data = response.data.response || [];
-
-      return data[0] ? this._formatMatch(data[0]) : null;
-    } catch (error) {
-      console.error("❌ Error in getMatchById:", error.response?.data || error.message);
-      return null;
-    }
-  }
-
-  // ✅ ترتيب الدوري
-  async getStandings(leagueId, season) {
-    try {
-      const response = await this.api.get(`/football-standings/${leagueId}/${season}`);
-      const data = response.data.response || [];
-      console.log(`📊 Standings found: ${data.length}`);
-
-      return data.map((team) => ({
-        rank: team.rank || 0,
-        team: {
-          id: team.team_id,
-          name: team.team_name,
-          logo: team.team_logo,
-        },
-        points: team.points,
-        goalsDiff: team.goals_diff,
-        played: team.played,
-        win: team.win,
-        draw: team.draw,
-        lose: team.lose,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getStandings:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-all-leagues");
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching leagues:", err.message);
       return [];
     }
   }
 
-  // ✅ الدوريات
-  async getLeagues() {
+  async getLeaguesByCountry(country) {
     try {
-      console.log("🏆 Fetching leagues...");
-      const response = await this.api.get("/football-leagues");
-      const data = response.data.response || [];
-
-      return data.map((league) => ({
-        id: league.league_id,
-        name: league.league_name,
-        country: league.country,
-        logo: league.league_logo,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getLeagues:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-all-leagues-with-country", {
+        params: { country },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching leagues by country:", err.message);
       return [];
     }
   }
 
-  // ✅ معلومات فريق
-  async getTeamInfo(teamId) {
+  async getLeagueDetail(leagueid) {
     try {
-      const response = await this.api.get(`/football-team/${teamId}`);
-      const team = response.data.response[0] || {};
-      return {
-        id: team.team_id,
-        name: team.team_name,
-        logo: team.team_logo,
-        country: team.country,
-      };
-    } catch (error) {
-      console.error("❌ Error in getTeamInfo:", error.response?.data || error.message);
-      return null;
-    }
-  }
-
-  // ✅ لاعبي فريق
-  async getTeamPlayers(teamId) {
-    try {
-      const response = await this.api.get(`/football-team-players/${teamId}`);
-      const data = response.data.response || [];
-
-      return data.map((player) => ({
-        id: player.player_id,
-        name: player.player_name,
-        age: player.age,
-        nationality: player.nationality,
-        photo: player.photo,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getTeamPlayers:", error.response?.data || error.message);
-      return [];
-    }
-  }
-
-  // ✅ إحصائيات المباراة
-  async getMatchStatistics(matchId) {
-    try {
-      const response = await this.api.get(`/football-statistics/${matchId}`);
-      const stats = response.data.response || [];
-
-      return stats.reduce((acc, s) => {
-        acc[s.type] = { home: s.home, away: s.away };
-        return acc;
-      }, {});
-    } catch (error) {
-      console.error("❌ Error in getMatchStatistics:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-league-detail", {
+        params: { leagueid },
+      });
+      return res.data || {};
+    } catch (err) {
+      console.error("❌ Error fetching league detail:", err.message);
       return {};
     }
   }
 
-  // ✅ أحداث المباراة
-  async getMatchEvents(matchId) {
+  /* =========================
+      🏟️ TEAMS
+  ========================= */
+  async getTeamsByLeague(leagueid) {
     try {
-      const response = await this.api.get(`/football-events/${matchId}`);
-      const events = response.data.response || [];
-
-      return events.map((event) => ({
-        time: event.minute || 0,
-        type: event.type,
-        player: event.player_name,
-        team: event.team_name,
-        detail: event.detail,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getMatchEvents:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-list-all-team", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching teams by league:", err.message);
       return [];
     }
   }
 
-  // ✅ تشكيل المباراة
-  async getMatchLineups(matchId) {
+  async getTeamDetail(teamid) {
     try {
-      const response = await this.api.get(`/football-lineups/${matchId}`);
-      const lineups = response.data.response || [];
+      const res = await this.api.get("/football-get-team-detail", {
+        params: { teamid },
+      });
+      return res.data || {};
+    } catch (err) {
+      console.error("❌ Error fetching team detail:", err.message);
+      return {};
+    }
+  }
 
-      return lineups.map((team) => ({
-        team: {
-          id: team.team_id,
-          name: team.team_name,
-          logo: team.team_logo,
-        },
-        formation: team.formation,
-        coach: team.coach,
-        startXI: team.startXI || [],
-        substitutes: team.substitutes || [],
-      }));
-    } catch (error) {
-      console.error("❌ Error in getMatchLineups:", error.response?.data || error.message);
+  /* =========================
+      👥 PLAYERS
+  ========================= */
+  async getPlayersByTeam(teamid) {
+    try {
+      const res = await this.api.get("/football-get-players-by-team", {
+        params: { teamid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching players by team:", err.message);
       return [];
     }
   }
 
-  // ✅ هدافي الدوري
-  async getTopScorers(leagueId, season) {
+  async getPlayerDetail(playerid) {
     try {
-      const response = await this.api.get(`/football-topscorers/${leagueId}/${season}`);
-      const players = response.data.response || [];
+      const res = await this.api.get("/football-get-player-detail", {
+        params: { playerid },
+      });
+      return res.data || {};
+    } catch (err) {
+      console.error("❌ Error fetching player detail:", err.message);
+      return {};
+    }
+  }
 
-      return players.map((p) => ({
-        id: p.player_id,
-        name: p.player_name,
-        team: p.team_name,
-        goals: p.goals,
-        assists: p.assists,
-        matches: p.matches,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getTopScorers:", error.response?.data || error.message);
+  /* =========================
+      ⚽ TOP PLAYERS
+  ========================= */
+  async getTopPlayersByGoals(leagueid) {
+    try {
+      const res = await this.api.get("/football-get-top-players-by-goals", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching top scorers:", err.message);
       return [];
     }
   }
 
-  // ✅ فرق الدوري
-  async getTeamsByLeague(leagueId) {
+  async getTopPlayersByAssists(leagueid) {
     try {
-      const response = await this.api.get(`/football-league-teams/${leagueId}`);
-      const teams = response.data.response || [];
-
-      return teams.map((t) => ({
-        id: t.team_id,
-        name: t.team_name,
-        logo: t.team_logo,
-        country: t.country,
-      }));
-    } catch (error) {
-      console.error("❌ Error in getTeamsByLeague:", error.response?.data || error.message);
+      const res = await this.api.get("/football-get-top-players-by-assists", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching top assists:", err.message);
       return [];
     }
   }
 
-  // ✅ دالة داخلية لتوحيد تنسيق المباراة
-  _formatMatch(match) {
-    return {
-      fixture: {
-        id: match.fixture_id || match.id,
-        date: match.match_time || new Date().toISOString(),
-        status: {
-          short: match.status || "NS",
-          elapsed: match.minute || 0,
-        },
-      },
-      league: {
-        id: match.league_id || 0,
-        name: match.league_name || "Unknown League",
-        country: match.country || "Unknown",
-        logo: match.league_logo || "",
-      },
-      teams: {
-        home: {
-          id: match.home_team_id,
-          name: match.home_team_name,
-          logo: match.home_team_logo,
-        },
-        away: {
-          id: match.away_team_id,
-          name: match.away_team_name,
-          logo: match.away_team_logo,
-        },
-      },
-      goals: {
-        home: match.home_team_score ?? 0,
-        away: match.away_team_score ?? 0,
-      },
-    };
+  async getTopPlayersByRating(leagueid) {
+    try {
+      const res = await this.api.get("/football-get-top-players-by-rating", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching top rated players:", err.message);
+      return [];
+    }
+  }
+
+  /* =========================
+      📊 STATISTICS & STANDINGS
+  ========================= */
+  async getLeagueStandings(leagueid) {
+    try {
+      const res = await this.api.get("/football-get-league-standings", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching league standings:", err.message);
+      return [];
+    }
+  }
+
+  async getMatchStatistics(matchid) {
+    try {
+      const res = await this.api.get("/football-get-match-statistics", {
+        params: { matchid },
+      });
+      return res.data || {};
+    } catch (err) {
+      console.error("❌ Error fetching match statistics:", err.message);
+      return {};
+    }
+  }
+
+  /* =========================
+      📰 NEWS
+  ========================= */
+  async getTrendingNews() {
+    try {
+      const res = await this.api.get("/football-get-trending-news");
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching news:", err.message);
+      return [];
+    }
+  }
+
+  async getNewsByLeague(leagueid) {
+    try {
+      const res = await this.api.get("/football-get-news-by-league", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching league news:", err.message);
+      return [];
+    }
+  }
+
+  async getNewsByTeam(teamid) {
+    try {
+      const res = await this.api.get("/football-get-news-by-team", {
+        params: { teamid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching team news:", err.message);
+      return [];
+    }
+  }
+
+  /* =========================
+      🔍 SEARCH
+  ========================= */
+  async searchPlayers(query) {
+    try {
+      const res = await this.api.get("/football-search-players", {
+        params: { query },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error searching players:", err.message);
+      return [];
+    }
+  }
+
+  async searchTeams(query) {
+    try {
+      const res = await this.api.get("/football-search-teams", {
+        params: { query },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error searching teams:", err.message);
+      return [];
+    }
+  }
+
+  async searchLeagues(query) {
+    try {
+      const res = await this.api.get("/football-search-leagues", {
+        params: { query },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error searching leagues:", err.message);
+      return [];
+    }
+  }
+
+  async searchMatches(query) {
+    try {
+      const res = await this.api.get("/football-search-matches", {
+        params: { query },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error searching matches:", err.message);
+      return [];
+    }
+  }
+
+  /* =========================
+      🔁 TRANSFERS
+  ========================= */
+  async getAllTransfers() {
+    try {
+      const res = await this.api.get("/football-get-all-transfers");
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching transfers:", err.message);
+      return [];
+    }
+  }
+
+  async getTopTransfers() {
+    try {
+      const res = await this.api.get("/football-get-top-transfers");
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching top transfers:", err.message);
+      return [];
+    }
+  }
+
+  async getTransfersByLeague(leagueid) {
+    try {
+      const res = await this.api.get("/football-get-transfers-by-league", {
+        params: { leagueid },
+      });
+      return res.data || [];
+    } catch (err) {
+      console.error("❌ Error fetching transfers by league:", err.message);
+      return [];
+    }
   }
 }
 
-// ✅ Export all functions
-module.exports = {
-  getLiveMatches: () => new FootballAPIService().getLiveMatches(),
-  getTodayMatches: () => new FootballAPIService().getTodayMatches(),
-  getYesterdayMatches: () => new FootballAPIService().getYesterdayMatches(),
-  getTomorrowMatches: () => new FootballAPIService().getTomorrowMatches(),
-  getMatchesByDate: (date) => new FootballAPIService().getMatchesByDate(date),
-  getMatchesInRange: (from, to) => new FootballAPIService().getMatchesInRange(from, to),
-  getMatchesOneWeekRange: () => new FootballAPIService().getMatchesOneWeekRange(),
-  getMatchById: (id) => new FootballAPIService().getMatchById(id),
-  getStandings: (league, season) => new FootballAPIService().getStandings(league, season),
-  getLeagues: () => new FootballAPIService().getLeagues(),
-  getTeamInfo: (id) => new FootballAPIService().getTeamInfo(id),
-  getTeamPlayers: (id) => new FootballAPIService().getTeamPlayers(id),
-  getMatchStatistics: (id) => new FootballAPIService().getMatchStatistics(id),
-  getMatchEvents: (id) => new FootballAPIService().getMatchEvents(id),
-  getMatchLineups: (id) => new FootballAPIService().getMatchLineups(id),
-  getTopScorers: (league, season) => new FootballAPIService().getTopScorers(league, season),
-  getTeamsByLeague: (league) => new FootballAPIService().getTeamsByLeague(league),
-};
+/* =========================
+   ✅ EXPORTS
+========================= */
+module.exports = new FootballAPI();
