@@ -1,4 +1,3 @@
-
 // services/footballAPI.js
 const axios = require("axios");
 
@@ -22,32 +21,38 @@ class FootballAPI {
   async getLiveMatches() {
     try {
       const res = await this.api.get("/football-current-live");
-      
-      // 🔍 طباعة Response الكامل لنشوف الهيكل الصحيح
-      console.log("📦 Full API Response:", JSON.stringify(res.data, null, 2));
-      
-      // جرب كل الاحتمالات
-      let matches = res.data?.response?.live || 
-                    res.data?.response || 
-                    res.data?.data || 
-                    res.data || 
-                    [];
-      
-      // لو كان object مش array
-      if (!Array.isArray(matches) && matches.live) {
-        matches = matches.live;
+      const live = res.data?.response?.live || [];
+      console.log(`📡 Live matches fetched from API: ${live.length}`);
+
+      if (!live.length) {
+        console.log("✅ API شغالة بس مفيش ماتشات لايف دلوقتي");
+        return [];
       }
-      
-      console.log(`📡 Live Matches Found: ${Array.isArray(matches) ? matches.length : 'Not an array'}`);
-      console.log("🎯 Matches Type:", typeof matches);
-      
-      return Array.isArray(matches) ? matches : [];
+
+      // إعادة تشكيل الداتا لتناسب الواجهة الأمامية
+      return live.map(m => ({
+        fixture: {
+          id: m.match_id,
+          date: m.match_time,
+          status: { short: m.status || "FT", elapsed: m.minute || 0 },
+        },
+        teams: {
+          home: { name: m.home_name, logo: m.home_logo },
+          away: { name: m.away_name, logo: m.away_logo },
+        },
+        goals: {
+          home: m.score_home ?? 0,
+          away: m.score_away ?? 0,
+        },
+        league: {
+          id: m.league_id,
+          name: m.league_name,
+          country: m.country_name,
+          logo: m.league_logo,
+        },
+      }));
     } catch (err) {
-      console.error("❌ Error fetching live matches:", err.message);
-      if (err.response) {
-        console.error("📛 API Error:", err.response.data);
-        console.error("📛 Status:", err.response.status);
-      }
+      console.error("❌ Error fetching live matches:", err.response?.data || err.message);
       return [];
     }
   }
@@ -60,9 +65,32 @@ class FootballAPI {
       const res = await this.api.get("/football-get-matches-by-date", {
         params: { date },
       });
-      return res.data?.response || [];
+      const matches = res.data?.response || [];
+      console.log(`📅 Matches fetched for ${date}: ${matches.length}`);
+
+      return matches.map(m => ({
+        fixture: {
+          id: m.match_id,
+          date: m.match_time,
+          status: { short: m.status || "NS", elapsed: m.minute || 0 },
+        },
+        teams: {
+          home: { name: m.home_name, logo: m.home_logo },
+          away: { name: m.away_name, logo: m.away_logo },
+        },
+        goals: {
+          home: m.score_home ?? 0,
+          away: m.score_away ?? 0,
+        },
+        league: {
+          id: m.league_id,
+          name: m.league_name,
+          country: m.country_name,
+          logo: m.league_logo,
+        },
+      }));
     } catch (err) {
-      console.error("❌ Error fetching matches by date:", err.message);
+      console.error("❌ Error fetching matches by date:", err.response?.data || err.message);
       return [];
     }
   }
