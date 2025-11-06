@@ -19,13 +19,19 @@ class FootballAPI {
       📡 LIVE SCORES
   ========================= */
   async getLiveMatches() {
-    try {
-      const res = await this.api.get("/football-current-live");
-      return res.data || [];
-    } catch (err) {
-      console.error("❌ Error fetching live matches:", err.message);
-      return [];
-    }
+  try {
+    const res = await this.api.get("/football-current-live");
+
+    // ✅ التصحيح هنا:
+    const matches = res.data?.response?.live || [];
+
+    console.log(`📡 API Live Matches Response: ${matches.length}`);
+
+    return matches;
+  } catch (err) {
+    console.error("❌ Error fetching live matches:", err.message);
+    return [];
+  }
   }
 
   /* =========================
