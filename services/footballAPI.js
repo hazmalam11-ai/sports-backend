@@ -22,11 +22,32 @@ class FootballAPI {
   async getLiveMatches() {
     try {
       const res = await this.api.get("/football-current-live");
-      const matches = res.data?.response?.live || [];
-      console.log(`📡 API Live Matches Response: ${matches.length}`);
-      return matches;
+      
+      // 🔍 طباعة Response الكامل لنشوف الهيكل الصحيح
+      console.log("📦 Full API Response:", JSON.stringify(res.data, null, 2));
+      
+      // جرب كل الاحتمالات
+      let matches = res.data?.response?.live || 
+                    res.data?.response || 
+                    res.data?.data || 
+                    res.data || 
+                    [];
+      
+      // لو كان object مش array
+      if (!Array.isArray(matches) && matches.live) {
+        matches = matches.live;
+      }
+      
+      console.log(`📡 Live Matches Found: ${Array.isArray(matches) ? matches.length : 'Not an array'}`);
+      console.log("🎯 Matches Type:", typeof matches);
+      
+      return Array.isArray(matches) ? matches : [];
     } catch (err) {
       console.error("❌ Error fetching live matches:", err.message);
+      if (err.response) {
+        console.error("📛 API Error:", err.response.data);
+        console.error("📛 Status:", err.response.status);
+      }
       return [];
     }
   }
