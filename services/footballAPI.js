@@ -4,7 +4,7 @@ const axios = require("axios");
 class FootballAPI {
   constructor() {
     this.api = axios.create({
-      baseURL: "https://free-api-live-football-data.p.rapidapi.com/v1",
+      baseURL: "https://free-api-live-football-data.p.rapidapi.com",
       headers: {
         "x-rapidapi-host": "free-api-live-football-data.p.rapidapi.com",
         "x-rapidapi-key": process.env.FOOTBALL_API_KEY,
@@ -20,9 +20,10 @@ class FootballAPI {
   ========================= */
   async getLiveMatches() {
     try {
-      const res = await this.api.get("/livescores/matches/events/football-current-live");
+      const res = await this.api.get("/football-current-live");
       const live = res.data?.response?.live || res.data?.response || [];
-      console.log(`📡 Live matches fetched from API: ${live.length}`);
+
+      console.log(`📡 Live matches fetched from API: ${live.length || 0}`);
 
       if (!live.length) {
         console.log("✅ API شغالة بس مفيش ماتشات لايف دلوقتي");
