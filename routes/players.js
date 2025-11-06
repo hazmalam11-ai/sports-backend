@@ -1,63 +1,95 @@
-
 // routes/players.js
 const express = require("express");
 const Player = require("../models/Player");
 const { requireAuth, authorize } = require("../middlewares/auth");
-const { getPlayerInfo, getPlayerStats, getTopScorers } = require("../services/footballAPI");
+const footballAPI = require("../services/footballAPI");
 
 const router = express.Router();
 
 /* ========================
-    API-Football Endpoints
+    ⚽ API Endpoints (RapidAPI)
    ======================== */
 
-// 📌 جلب هدافي اللاعبين من API
+// 📌 جلب هدافي اللاعبين بالأهداف
 router.get("/api/topscorers", async (req, res, next) => {
   try {
-    const { league, season } = req.query;
-    const currentSeason = season || new Date().getFullYear();
-    
-    if (!league) {
-      return res.status(400).json({ message: "League ID is required" });
-    }
-    
-    console.log(`🏆 Fetching top scorers for league ${league}, season ${currentSeason}`);
-    const topScorers = await getTopScorers(league, currentSeason);
-    
-    // Set proper UTF-8 encoding
-    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    const { league } = req.query;
+    if (!league) return res.status(400).json({ message: "League ID is required" });
+
+    console.log(`🏆 Fetching top scorers for league ${league}`);
+    const topScorers = await footballAPI.getTopPlayersByGoals(league);
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
     res.json(topScorers);
   } catch (err) {
+    console.error("❌ Error fetching top scorers:", err.message);
     next(err);
   }
 });
 
-// 📌 جلب بيانات لاعب من API
-router.get("/api/:id", async (req, res, next) => {
+// 📌 جلب أكثر اللاعبين صناعة للأهداف
+router.get("/api/topassists", async (req, res, next) => {
   try {
-    const player = await getPlayerInfo(req.params.id);
-    if (!player) {
-      return res.status(404).json({ message: "Player not found in API" });
-    }
+    const { league } = req.query;
+    if (!league) return res.status(400).json({ message: "League ID is required" });
+
+    console.log(`🎯 Fetching top assists for league ${league}`);
+    const topAssists = await footballAPI.getTopPlayersByAssists(league);
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json(topAssists);
+  } catch (err) {
+    console.error("❌ Error fetching top assists:", err.message);
+    next(err);
+  }
+});
+
+// 📌 جلب اللاعبين الأعلى تقييماً
+router.get("/api/toprated", async (req, res, next) => {
+  try {
+    const { league } = req.query;
+    if (!league) return res.status(400).json({ message: "League ID is required" });
+
+    console.log(`⭐ Fetching top rated players for league ${league}`);
+    const topRated = await footballAPI.getTopPlayersByRating(league);
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json(topRated);
+  } catch (err) {
+    console.error("❌ Error fetching top rated players:", err.message);
+    next(err);
+  }
+});
+
+// 📌 جلب لاعبي فريق محدد
+router.get("/api/team/:teamid", async (req, res, next) => {
+  try {
+    const { teamid } = req.params;
+    console.log(`👥 Fetching players for team ${teamid}`);
+    const players = await footballAPI.getPlayersByTeam(teamid);
+
+    res.setHeader("Content-Type", "application/json; charset=utf-8");
+    res.json(players);
+  } catch (err) {
+    console.error("❌ Error fetching team players:", err.message);
+    next(err);
+  }
+});
+
+// 📌 جلب بيانات لاعب معين
+router.get("/api/player/:id", async (req, res, next) => {
+  try {
+    const player = await footballAPI.getPlayerDetail(req.params.id);
+    if (!player) return res.status(404).json({ message: "Player not found" });
     res.json(player);
   } catch (err) {
-    next(err);
-  }
-});
-
-// 📌 جلب إحصائيات لاعب من API
-router.get("/api/:id/stats", async (req, res, next) => {
-  try {
-    const season = new Date().getFullYear(); // الموسم الحالي
-    const stats = await getPlayerStats(req.params.id, season);
-    res.json(stats);
-  } catch (err) {
+    console.error("❌ Error fetching player detail:", err.message);
     next(err);
   }
 });
 
 /* ========================
-    MongoDB Endpoints
+    💾 MongoDB Endpoints
    ======================== */
 
 // ➕ إنشاء لاعب (admin/editor)
@@ -76,7 +108,7 @@ router.post("/", requireAuth, authorize("team:create"), async (req, res, next) =
   }
 });
 
-// 📌 كل اللاعبين (من DB)
+// 📌 جلب جميع اللاعبين من الداتابيز
 router.get("/", async (req, res, next) => {
   try {
     const players = await Player.find().populate("team", "name country");
@@ -86,7 +118,7 @@ router.get("/", async (req, res, next) => {
   }
 });
 
-// 📌 لاعب واحد (من DB)
+// 📌 جلب لاعب واحد من الداتابيز
 router.get("/:id", async (req, res, next) => {
   try {
     const player = await Player.findById(req.params.id).populate("team", "name country");
@@ -100,7 +132,7 @@ router.get("/:id", async (req, res, next) => {
   }
 });
 
-// ✏️ تحديث لاعب (من DB)
+// ✏️ تحديث بيانات لاعب
 router.put("/:id", requireAuth, authorize("team:update"), async (req, res, next) => {
   try {
     const updated = await Player.findByIdAndUpdate(req.params.id, req.body, {
@@ -117,7 +149,7 @@ router.put("/:id", requireAuth, authorize("team:update"), async (req, res, next)
   }
 });
 
-// 🗑️ حذف لاعب (من DB)
+// 🗑️ حذف لاعب
 router.delete("/:id", requireAuth, authorize("team:delete"), async (req, res, next) => {
   try {
     const deleted = await Player.findByIdAndDelete(req.params.id);
@@ -132,6 +164,3 @@ router.delete("/:id", requireAuth, authorize("team:delete"), async (req, res, ne
 });
 
 module.exports = router;
-
-
-
