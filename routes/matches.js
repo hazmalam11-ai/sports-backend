@@ -25,37 +25,42 @@ async function fetchFromRapidAPI(endpoint) {
 
 // ✅ Format all matches in unified structure
 function formatMatches(matches) {
+  if (!Array.isArray(matches)) {
+    console.log("⚠️ Matches is not an array:", typeof matches);
+    return [];
+  }
+  
   return matches.map((match) => ({
     fixture: {
-      id: match.fixture_id || match.id,
+      id: match.fixture_id || match.id || match.match_id,
       date: match.match_time || match.date || new Date().toISOString(),
       status: {
-        short: match.status || "NS",
-        long: match.status || "Not Started",
-        elapsed: match.minute || 0,
+        short: match.status || match.match_status || "NS",
+        long: match.status_full || match.status || "Not Started",
+        elapsed: match.minute || match.elapsed || 0,
       },
     },
     league: {
-      id: match.league_id || 0,
-      name: match.league_name || "Unknown League",
-      country: match.country || "Unknown",
-      logo: match.league_logo || "",
+      id: match.league_id || match.competition_id || 0,
+      name: match.league_name || match.competition_name || "Unknown League",
+      country: match.country || match.country_name || "Unknown",
+      logo: match.league_logo || match.competition_logo || "",
     },
     teams: {
       home: {
-        id: match.home_team_id || 0,
-        name: match.home_team_name || "Home",
-        logo: match.home_team_logo || "",
+        id: match.home_team_id || match.home_id || 0,
+        name: match.home_team_name || match.home_name || "Home",
+        logo: match.home_team_logo || match.home_logo || "",
       },
       away: {
-        id: match.away_team_id || 0,
-        name: match.away_team_name || "Away",
-        logo: match.away_team_logo || "",
+        id: match.away_team_id || match.away_id || 0,
+        name: match.away_team_name || match.away_name || "Away",
+        logo: match.away_team_logo || match.away_logo || "",
       },
     },
     goals: {
-      home: match.home_team_score ?? 0,
-      away: match.away_team_score ?? 0,
+      home: match.home_team_score ?? match.home_score ?? 0,
+      away: match.away_team_score ?? match.away_score ?? 0,
     },
   }));
 }
@@ -69,7 +74,9 @@ router.get("/today", async (req, res) => {
   try {
     console.log("📅 Fetching TODAY matches...");
     const data = await fetchFromRapidAPI("/football-today");
-    const matches = data?.response || [];
+    console.log("📦 Today Response:", JSON.stringify(data, null, 2));
+    
+    const matches = data?.response || data?.data || [];
     res.json(formatMatches(matches));
   } catch (err) {
     console.error("❌ Error fetching today's matches:", err.message);
@@ -82,7 +89,9 @@ router.get("/yesterday", async (req, res) => {
   try {
     console.log("🕓 Fetching YESTERDAY matches...");
     const data = await fetchFromRapidAPI("/football-yesterday");
-    const matches = data?.response || [];
+    console.log("📦 Yesterday Response:", JSON.stringify(data, null, 2));
+    
+    const matches = data?.response || data?.data || [];
     res.json(formatMatches(matches));
   } catch (err) {
     console.error("❌ Error fetching yesterday's matches:", err.message);
@@ -95,7 +104,9 @@ router.get("/tomorrow", async (req, res) => {
   try {
     console.log("🌅 Fetching TOMORROW matches...");
     const data = await fetchFromRapidAPI("/football-tomorrow");
-    const matches = data?.response || [];
+    console.log("📦 Tomorrow Response:", JSON.stringify(data, null, 2));
+    
+    const matches = data?.response || data?.data || [];
     res.json(formatMatches(matches));
   } catch (err) {
     console.error("❌ Error fetching tomorrow's matches:", err.message);
@@ -108,7 +119,9 @@ router.get("/week", async (req, res) => {
   try {
     console.log("📆 Fetching NEXT 7 DAYS matches...");
     const data = await fetchFromRapidAPI("/football-week");
-    const matches = data?.response || [];
+    console.log("📦 Week Response:", JSON.stringify(data, null, 2));
+    
+    const matches = data?.response || data?.data || [];
     res.json(formatMatches(matches));
   } catch (err) {
     console.error("❌ Error fetching week matches:", err.message);
@@ -121,11 +134,39 @@ router.get("/live", async (req, res) => {
   try {
     console.log("🔴 Fetching LIVE matches...");
     const data = await fetchFromRapidAPI("/football-current-live");
-    const matches = data?.response || [];
+    console.log("📦 Live Full Response:", JSON.stringify(data, null, 2));
+    
+    // 🎯 المشكلة كانت هنا!
+    let matches = data?.response?.live || 
+                  data?.response || 
+                  data?.data?.live || 
+                  data?.data || 
+                  data?.live || 
+                  [];
+    
+    // لو كان object مش array
+    if (!Array.isArray(matches) && typeof matches === 'object') {
+      if (matches.live && Array.isArray(matches.live)) {
+        matches = matches.live;
+      } else {
+        matches = [];
+      }
+    }
+    
+    console.log(`📡 Live Matches Found: ${Array.isArray(matches) ? matches.length : 'Not an array'}`);
+    console.log("🎯 Matches Type:", typeof matches);
+    
     res.json(formatMatches(matches));
   } catch (err) {
     console.error("❌ Error fetching live matches:", err.message);
-    res.status(500).json({ error: "Error fetching live matches" });
+    if (err.response) {
+      console.error("📛 API Error Response:", err.response.data);
+      console.error("📛 Status Code:", err.response.status);
+    }
+    res.status(500).json({ 
+      error: "Error fetching live matches",
+      details: err.message 
+    });
   }
 });
 
@@ -134,12 +175,14 @@ router.get("/leagues", async (req, res) => {
   try {
     console.log("🏆 Fetching LEAGUES list...");
     const data = await fetchFromRapidAPI("/football-leagues");
-    const leagues = data?.response || [];
+    console.log("📦 Leagues Response:", JSON.stringify(data, null, 2));
+    
+    const leagues = data?.response || data?.data || [];
     const formatted = leagues.map((l) => ({
-      id: l.league_id || 0,
-      name: l.league_name || "Unknown League",
-      country: l.country || "Unknown",
-      logo: l.league_logo || "",
+      id: l.league_id || l.id || 0,
+      name: l.league_name || l.name || "Unknown League",
+      country: l.country || l.country_name || "Unknown",
+      logo: l.league_logo || l.logo || "",
     }));
     res.json(formatted);
   } catch (err) {
