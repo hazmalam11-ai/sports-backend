@@ -1,0 +1,148 @@
+{
+  "leagues": [
+    {
+      "id": 39,
+      "name": "Premier League (England)",
+      "season": 2025,
+      "teams": [
+        { "id": 50, "name": "Manchester City" },
+        { "id": 49, "name": "Chelsea" },
+        { "id": 33, "name": "Manchester United" },
+        { "id": 40, "name": "Liverpool" },
+        { "id": 42, "name": "Arsenal" }
+      ]
+    },
+    {
+      "id": 140,
+      "name": "La Liga (Spain)",
+      "season": 2025,
+      "teams": [
+        { "id": 529, "name": "Barcelona" },
+        { "id": 541, "name": "Real Madrid" },
+        { "id": 530, "name": "Atletico Madrid" },
+        { "id": 536, "name": "Sevilla" },
+        { "id": 532, "name": "Valencia" }
+      ]
+    },
+    {
+      "id": 135,
+      "name": "Serie A (Italy)",
+      "season": 2025,
+      "teams": [
+        { "id": 496, "name": "Inter Milan" },
+        { "id": 489, "name": "AC Milan" },
+        { "id": 497, "name": "Juventus" },
+        { "id": 500, "name": "Roma" },
+        { "id": 498, "name": "Napoli" }
+      ]
+    },
+    {
+      "id": 78,
+      "name": "Bundesliga (Germany)",
+      "season": 2025,
+      "teams": [
+        { "id": 157, "name": "Bayern Munich" },
+        { "id": 165, "name": "Borussia Dortmund" },
+        { "id": 169, "name": "RB Leipzig" },
+        { "id": 167, "name": "Bayer Leverkusen" },
+        { "id": 163, "name": "Schalke 04" }
+      ]
+    },
+    {
+      "id": 61,
+      "name": "Ligue 1 (France)",
+      "season": 2025,
+      "teams": [
+        { "id": 85, "name": "Paris Saint Germain" },
+        { "id": 81, "name": "Lyon" },
+        { "id": 79, "name": "Marseille" },
+        { "id": 91, "name": "Monaco" },
+        { "id": 84, "name": "Lille" }
+      ]
+    },
+    {
+      "id": 307,
+      "name": "Egyptian Premier League",
+      "season": 2025,
+      "teams": [
+        { "id": 1001, "name": "Al Ahly" },
+        { "id": 1002, "name": "Zamalek" },
+        { "id": 1003, "name": "Pyramids FC" },
+        { "id": 1004, "name": "Al Masry" },
+        { "id": 1005, "name": "Ismaily" }
+      ]
+    },
+    {
+      "id": 152,
+      "name": "Saudi Pro League",
+      "season": 2025,
+      "teams": [
+        { "id": 3001, "name": "Al Hilal" },
+        { "id": 3002, "name": "Al Nassr" },
+        { "id": 3003, "name": "Al Ittihad" },
+        { "id": 3004, "name": "Al Ahli" },
+        { "id": 3005, "name": "Al Shabab" }
+      ]
+    },
+    {
+      "id": 296,
+      "name": "UAE Pro League",
+      "season": 2025,
+      "teams": [
+        { "id": 4001, "name": "Al Ain" },
+        { "id": 4002, "name": "Al Jazira" },
+        { "id": 4003, "name": "Shabab Al Ahli" },
+        { "id": 4004, "name": "Al Wahda" },
+        { "id": 4005, "name": "Sharjah" }
+      ]
+    },
+    {
+      "id": 194,
+      "name": "Qatar Stars League",
+      "season": 2025,
+      "teams": [
+        { "id": 5001, "name": "Al Sadd" },
+        { "id": 5002, "name": "Al Duhail" },
+        { "id": 5003, "name": "Al Rayyan" },
+        { "id": 5004, "name": "Qatar SC" },
+        { "id": 5005, "name": "Al Arabi" }
+      ]
+    },
+    {
+      "id": 195,
+      "name": "Tunisian Ligue 1",
+      "season": 2025,
+      "teams": [
+        { "id": 6001, "name": "Esperance de Tunis" },
+        { "id": 6002, "name": "Club Africain" },
+        { "id": 6003, "name": "Etoile du Sahel" },
+        { "id": 6004, "name": "CS Sfaxien" },
+        { "id": 6005, "name": "US Monastir" }
+      ]
+    },
+    {
+      "id": 200,
+      "name": "Algerian Ligue 1",
+      "season": 2025,
+      "teams": [
+        { "id": 7001, "name": "USM Alger" },
+        { "id": 7002, "name": "MC Alger" },
+        { "id": 7003, "name": "JS Kabylie" },
+        { "id": 7004, "name": "ES Setif" },
+        { "id": 7005, "name": "CR Belouizdad" }
+      ]
+    },
+    {
+      "id": 201,
+      "name": "Moroccan Botola Pro",
+      "season": 2025,
+      "teams": [
+        { "id": 8001, "name": "Wydad Casablanca" },
+        { "id": 8002, "name": "Raja Casablanca" },
+        { "id": 8003, "name": "FUS Rabat" },
+        { "id": 8004, "name": "RS Berkane" },
+        { "id": 8005, "name": "Maghreb Fez" }
+      ]
+    }
+  ]
+}
